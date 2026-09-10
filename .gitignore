@@ -1,0 +1,5 @@
+**/application.properties
+.env
+*.env
+*.pem
+**/src/main/resources/keys/
