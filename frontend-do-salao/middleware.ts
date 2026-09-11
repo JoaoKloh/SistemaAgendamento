@@ -17,13 +17,7 @@ export function middleware(request: NextRequest) {
       
       // Checa se o token AINDA NÃO expirou
       if (payload.exp && Date.now() < payload.exp * 1000) {
-        // Mapeamento defensivo incluindo o erro de digitação do backend "authoritities"
-        const roles = 
-          (payload.roles as string[]) || 
-          (payload.authorities as string[]) || 
-          (payload.authoritities as string[]) || 
-          []
-        
+        const roles = (payload.roles as string[]) || []
         const isTargetAdmin = roles.includes('ROLE_ADMIN') || roles.includes('ADMIN')
         return NextResponse.redirect(new URL(isTargetAdmin ? '/admin' : '/', request.url))
       }
@@ -46,13 +40,7 @@ export function middleware(request: NextRequest) {
         return response
       }
 
-      // Mapeamento de papéis (incluindo todas as variações possíveis enviadas pelo Spring)
-      const roles = 
-        (payload.roles as string[]) || 
-        (payload.authorities as string[]) || 
-        (payload.authoritities as string[]) || 
-        []
-
+      const roles = (payload.roles as string[]) || []
       const temAcessoAdmin = roles.includes('ROLE_ADMIN') || roles.includes('ADMIN')
 
       // Se NÃO for Admin, redireciona para a home

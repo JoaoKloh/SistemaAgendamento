@@ -2,6 +2,7 @@ package com.jbkloh.dvd.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,23 +18,27 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.request.CriarServicoRequestDTO;
+import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
-import com.jbkloh.dvd.model.AgendamentoEntity;
 import com.jbkloh.dvd.service.AgendamentoService;
 import com.jbkloh.dvd.service.ServicoPrestadoService;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/admin")
 @PreAuthorize("hasRole('ADMIN')")
-@RequiredArgsConstructor
 public class AdminController {
 
     private final AgendamentoService agendamentoService;
     private final ServicoPrestadoService servicoPrestadoService;
+
+    @Autowired
+    public AdminController(AgendamentoService agendamentoService, ServicoPrestadoService servicoPrestadoService) {
+        this.agendamentoService = agendamentoService;
+        this.servicoPrestadoService = servicoPrestadoService;
+    }
 
     @PostMapping("/criarServico")
     public ResponseEntity<Void> criarServico(@Valid @RequestBody CriarServicoRequestDTO req) {
@@ -55,7 +60,7 @@ public class AdminController {
 
     @PutMapping("/atualizar")
     public ResponseEntity<AgendamentoResponseDTO> atualizarAgendamento(@Valid @RequestBody AgendamentoUpdateRequestDTO req) {
-        AgendamentoResponseDTO response = agendamentoService.AtualizarAgendamento(req);
+        AgendamentoResponseDTO response = agendamentoService.atualizarAgendamento(req);
         return ResponseEntity.ok(response);
     }
 
@@ -66,8 +71,8 @@ public class AdminController {
     }
 
     @GetMapping("/agendamentos")
-    public ResponseEntity<List<AgendamentoEntity>> retornarAgendamentos() {
-        List<AgendamentoEntity> agendamentos = agendamentoService.retornarAgendamentos();
+    public ResponseEntity<List<AgendamentoDetalhadoResponseDTO>> retornarAgendamentos() {
+        List<AgendamentoDetalhadoResponseDTO> agendamentos = agendamentoService.retornarAgendamentos();
         return ResponseEntity.ok(agendamentos);
     }
 

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
+import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
 import com.jbkloh.dvd.enums.TipoItem;
@@ -31,16 +32,30 @@ public class AgendamentoService {
     private final ServicoPrestadoService servicoPrestadoService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
+    /**
+     * Resolve o mês/ano usados nos relatórios: usa os valores informados
+     * quando presentes e cai no mês/ano corrente quando ausentes.
+     */
+    private record Periodo(Integer mes, Integer ano) {}
+
+    private Periodo resolverPeriodo(Integer mes, Integer ano) {
+        LocalDate hoje = LocalDate.now();
+        return new Periodo(
+            mes != null ? mes : hoje.getMonthValue(),
+            ano != null ? ano : hoje.getYear()
+        );
+    }
+
     @Transactional
-    public AgendamentoResponseDTO CriarAgendamento(AgendamentoRequestDTO req) {
+    public AgendamentoResponseDTO criarAgendamento(AgendamentoRequestDTO req) {
         if (agendamentoRepository.existsByDataAgendamentoAndHoraAgendamento(req.dataAgendamento(), req.horaAgendamento())) {
             throw new AppException("Este agendamento não pode ser feito, pois outra pessoa já reservou o horário selecionado", HttpStatus.CONFLICT);
         }
-        
+
         if(agendamentoRepository.existsDuplicidadePorEmailEData(req.email(),req.dataAgendamento())){
             throw new AppException("Não é possível agendar dois horários no mesmo dia", HttpStatus.BAD_REQUEST);
         }
-        ClienteEntity cliente = clienteService.BuscarOuCriarCliente(req.nome(), req.email(), req.telefone());
+        ClienteEntity cliente = clienteService.buscarOuCriarCliente(req.nome(), req.email(), req.telefone());
 
 
         List<ServicoEntity> itensSelecionados = req.itensIds().stream()
@@ -65,7 +80,7 @@ public class AgendamentoService {
     }
 
     @Transactional
-    public AgendamentoResponseDTO AtualizarAgendamento(AgendamentoUpdateRequestDTO req) {
+    public AgendamentoResponseDTO atualizarAgendamento(AgendamentoUpdateRequestDTO req) {
         AgendamentoEntity agendamentoExistente = agendamentoRepository.findById(req.idAgendamento())
                 .orElseThrow(() -> new AppException("Não existe agendamento correspondente ao ID informado", HttpStatus.BAD_REQUEST));
 
@@ -96,39 +111,32 @@ public class AgendamentoService {
     }
 
     @Transactional(readOnly = true)
-    public List<AgendamentoEntity> retornarAgendamentos() {
-        return agendamentoRepository.findAll();
+    public List<AgendamentoDetalhadoResponseDTO> retornarAgendamentos() {
+        return agendamentoRepository.findAll()
+                .stream()
+                .map(AgendamentoDetalhadoResponseDTO::new)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public Integer retornarQuantidadeAgendamentosDoMes(Integer mes, Integer ano) {
-        LocalDate hoje = LocalDate.now();
-        
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
-
-        return agendamentoRepository.retornarQuantidadeAgendamentosDoMes(mesFinal, anoFinal);
+        Periodo periodo = resolverPeriodo(mes, ano);
+        return agendamentoRepository.retornarQuantidadeAgendamentosDoMes(periodo.mes(), periodo.ano());
     }
 
     @Transactional(readOnly = true)
     public Double retornarFaturamentoDoMes(Integer mes, Integer ano) {
-        LocalDate hoje = LocalDate.now();
-
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
-
-        return agendamentoRepository.calcularFaturamentoDoMes(mesFinal, anoFinal);
+        Periodo periodo = resolverPeriodo(mes, ano);
+        return agendamentoRepository.calcularFaturamentoDoMes(periodo.mes(), periodo.ano());
     }
+
     @Transactional(readOnly = true)
     public String retornarServicoMaisSolicitadoDoMes(Integer mes, Integer ano) {
-        LocalDate hoje = LocalDate.now();
-
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
+        Periodo periodo = resolverPeriodo(mes, ano);
 
         List<String> resultado = agendamentoRepository.buscarServicoMaisSolicitadoDoMes(
-                mesFinal, 
-                anoFinal, 
+                periodo.mes(),
+                periodo.ano(),
                 TipoItem.SERVICO,
                 PageRequest.of(0, 1)
         );
@@ -138,14 +146,11 @@ public class AgendamentoService {
 
     @Transactional(readOnly = true)
     public String retornarProdutoMaisSolicitadoDoMes(Integer mes, Integer ano) {
-        LocalDate hoje = LocalDate.now();
-
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
+        Periodo periodo = resolverPeriodo(mes, ano);
 
         List<String> resultado = agendamentoRepository.buscarServicoMaisSolicitadoDoMes(
-                mesFinal, 
-                anoFinal, 
+                periodo.mes(),
+                periodo.ano(),
                 TipoItem.PRODUTO,
                 PageRequest.of(0, 1)
         );
@@ -155,32 +160,26 @@ public class AgendamentoService {
 
     @Transactional(readOnly = true)
     public List<ItemRankingResponseDTO> retornarTopProdutosDoMes(Integer mes, Integer ano, Integer limite) {
-        LocalDate hoje = LocalDate.now();
-
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
+        Periodo periodo = resolverPeriodo(mes, ano);
         Integer limiteFinal = (limite != null) ? limite : 5;
 
         return agendamentoRepository.buscarRankingItensDoMes(
-                mesFinal, 
-                anoFinal, 
-                TipoItem.PRODUTO, 
+                periodo.mes(),
+                periodo.ano(),
+                TipoItem.PRODUTO,
                 PageRequest.of(0, limiteFinal)
         );
     }
 
     @Transactional(readOnly = true)
     public List<ItemRankingResponseDTO> retornarTopServicosDoMes(Integer mes, Integer ano, Integer limite) {
-        LocalDate hoje = LocalDate.now();
-
-        Integer mesFinal = (mes != null) ? mes : hoje.getMonthValue();
-        Integer anoFinal = (ano != null) ? ano : hoje.getYear();
+        Periodo periodo = resolverPeriodo(mes, ano);
         Integer limiteFinal = (limite != null) ? limite : 5; // Padrão Top 5
 
         return agendamentoRepository.buscarRankingItensDoMes(
-                mesFinal, 
-                anoFinal, 
-                TipoItem.SERVICO, 
+                periodo.mes(),
+                periodo.ano(),
+                TipoItem.SERVICO,
                 PageRequest.of(0, limiteFinal)
         );
     }

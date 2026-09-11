@@ -30,7 +30,7 @@ public class AgendamentoController {
 
     @PostMapping("/criar")
     public ResponseEntity<AgendamentoResponseDTO> criarAgendamento(@Valid @RequestBody AgendamentoRequestDTO req){
-            AgendamentoResponseDTO response = agendamentoService.CriarAgendamento(req);
+            AgendamentoResponseDTO response = agendamentoService.criarAgendamento(req);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

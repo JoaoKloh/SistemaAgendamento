@@ -24,7 +24,7 @@ public class ClienteService {
     private final UsuarioRepository usuarioRepository;
 
     @Transactional
-    public ClienteEntity BuscarOuCriarCliente(String nome, String email, String telefone){
+    public ClienteEntity buscarOuCriarCliente(String nome, String email, String telefone){
         String nomeUpper = nome.toUpperCase(); 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {

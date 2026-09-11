@@ -1,0 +1,24 @@
+# Copie este arquivo para "application.properties" (gitignored) e preencha
+# com valores reais. Alternativamente, defina as mesmas chaves como variaveis
+# de ambiente (ex.: SPRING_DATASOURCE_URL) - o Spring Boot aceita as duas
+# formas.
+
+# Banco de dados (deve bater com o docker-compose.yml / .env)
+spring.datasource.url=jdbc:postgresql://localhost:5432/${DB_NAME}
+spring.datasource.username=${POSTGRES_USER}
+spring.datasource.password=${POSTGRES_PASSWORD}
+spring.jpa.hibernate.ddl-auto=update
+
+# URL do frontend, usada em CORS e nos links enviados por e-mail/OAuth2
+url.frontend=http://localhost:3000
+
+# Login com Google (Google Cloud Console > OAuth 2.0 Client IDs)
+spring.security.oauth2.client.registration.google.client-id=
+spring.security.oauth2.client.registration.google.client-secret=
+
+# Envio de e-mail (codigo OTP) via Resend (https://resend.com)
+resend.api.key=
+resend.api.email.from=
+
+# Duracao do refresh token, em dias
+api.security.refresh.expiration-days=7

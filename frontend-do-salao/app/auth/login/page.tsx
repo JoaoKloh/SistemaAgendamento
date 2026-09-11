@@ -14,57 +14,7 @@ function LoginContent() {
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL 
-
-  useEffect(() => {
-    const getCookie = (name: string): string | null => {
-      const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"))
-      return match ? decodeURIComponent(match[2]) : null
-    }
-
-    const authCookie = getCookie("is-authenticated")
-    if (authCookie) {
-      router.replace("/")
-      return
-    }
-
-    setMounted(true)
-    const googleCode = searchParams.get("code")
-
-    if (googleCode) {
-      handleEnviarCodeGoogleAoBackend(googleCode)
-    }
-  }, [searchParams, router])
-
-  // Função auxiliar para verificar e aplicar o bloqueio de 5 minutos
-  const checkBlockStatus = (userEmail: string): boolean => {
-    const lockKey = `login_block_${userEmail.toLowerCase()}`
-    const blockUntil = localStorage.getItem(lockKey)
-
-    if (blockUntil) {
-      const now = Date.now()
-      const remainingSeconds = Math.ceil((parseInt(blockUntil, 10) - now) / 1000)
-
-      if (remainingSeconds > 0) {
-        const minutes = Math.floor(remainingSeconds / 60)
-        const seconds = remainingSeconds % 60
-        toast.error(
-          `Acesso bloqueado temporariamente. Tente novamente em ${minutes}m ${seconds}s.`
-        )
-        return true // Está bloqueado
-      } else {
-        localStorage.removeItem(lockKey) // Bloqueio expirou
-      }
-    }
-    return false // Liberado
-  }
-
-  const setBlockStatus = (userEmail: string) => {
-    const lockKey = `login_block_${userEmail.toLowerCase()}`
-    const fiveMinutesInMs = 5 * 60 * 1000
-    const expiryTime = Date.now() + fiveMinutesInMs
-    localStorage.setItem(lockKey, expiryTime.toString())
-  }
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   const handleEnviarCodeGoogleAoBackend = async (codigoDoGoogle: string) => {
     setIsLoading(true)
@@ -99,6 +49,60 @@ function LoginContent() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // "mounted" evita renderizar o formulário no servidor antes de checarmos o
+  // cookie de autenticação no cliente, prevenindo divergência de hidratação.
+  useEffect(() => {
+    const getCookie = (name: string): string | null => {
+      const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"))
+      return match ? decodeURIComponent(match[2]) : null
+    }
+
+    const authCookie = getCookie("is-authenticated")
+    if (authCookie) {
+      router.replace("/")
+      return
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+    const googleCode = searchParams.get("code")
+
+    if (googleCode) {
+      handleEnviarCodeGoogleAoBackend(googleCode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router])
+
+  // Função auxiliar para verificar e aplicar o bloqueio de 5 minutos
+  const checkBlockStatus = (userEmail: string): boolean => {
+    const lockKey = `login_block_${userEmail.toLowerCase()}`
+    const blockUntil = localStorage.getItem(lockKey)
+
+    if (blockUntil) {
+      const now = Date.now()
+      const remainingSeconds = Math.ceil((parseInt(blockUntil, 10) - now) / 1000)
+
+      if (remainingSeconds > 0) {
+        const minutes = Math.floor(remainingSeconds / 60)
+        const seconds = remainingSeconds % 60
+        toast.error(
+          `Acesso bloqueado temporariamente. Tente novamente em ${minutes}m ${seconds}s.`
+        )
+        return true // Está bloqueado
+      } else {
+        localStorage.removeItem(lockKey) // Bloqueio expirou
+      }
+    }
+    return false // Liberado
+  }
+
+  const setBlockStatus = (userEmail: string) => {
+    const lockKey = `login_block_${userEmail.toLowerCase()}`
+    const fiveMinutesInMs = 5 * 60 * 1000
+    const expiryTime = Date.now() + fiveMinutesInMs
+    localStorage.setItem(lockKey, expiryTime.toString())
   }
 
   const handleGoogleLogin = () => {

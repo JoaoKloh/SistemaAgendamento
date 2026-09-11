@@ -20,7 +20,10 @@ export function SiteHeader() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
 
+  // "mounted" evita renderizar o menu filtrado por autenticação no servidor
+  // (onde não há cookies), prevenindo divergência de hidratação.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true)
 
     const checkAuth = () => {
