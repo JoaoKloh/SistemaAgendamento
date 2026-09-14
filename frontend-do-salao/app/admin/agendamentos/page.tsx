@@ -9,7 +9,7 @@ export interface AgendamentoPainelDTO {
   dataAgendamento: string
   horaAgendamento: string
   valorTotal: number
-  itensNomes: string[]
+  itens: string[]
 }
 
 // Retorna a data de hoje estritamente no fuso horário do Brasil (YYYY-MM-DD)
@@ -39,7 +39,7 @@ export default function DashboardAgendamentosPage() {
     const fetchAgendamentosDoDia = async () => {
       try {
         const hoje = getHojeFormatadoLocal()
-        const res = await fetch(`${apiUrl}/api/agendamento/dia?data=${hoje}`, {
+        const res = await fetch(`${apiUrl}/admin/agendamentos/dia?data=${hoje}`, {
           credentials: "include",
         })
         if (res.ok) {
@@ -56,7 +56,7 @@ export default function DashboardAgendamentosPage() {
 
   // 2. Conexão via SSE para receber novos agendamentos em tempo real
   useEffect(() => {
-    const eventSource = new EventSource(`${apiUrl}/api/agendamento/stream`, {
+    const eventSource = new EventSource(`${apiUrl}/admin/stream`, {
       withCredentials: true,
     })
 
@@ -67,6 +67,13 @@ export default function DashboardAgendamentosPage() {
     eventSource.addEventListener("agendamento-atualizado", (event) => {
       try {
         const novoAgendamento: AgendamentoPainelDTO = JSON.parse(event.data)
+
+        // O SSE transmite para todos os clientes conectados, independente da data
+        // do agendamento. Como este painel mostra apenas o dia de hoje, ignoramos
+        // eventos de agendamentos feitos para outras datas.
+        if (novoAgendamento.dataAgendamento !== getHojeFormatadoLocal()) {
+          return
+        }
 
         setAgendamentos((prev) => {
           // Evita duplicação caso já exista no estado
@@ -140,7 +147,7 @@ export default function DashboardAgendamentosPage() {
 
               <div className="flex items-start gap-2 text-muted-foreground text-xs">
                 <Scissors className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{item.itensNomes?.join(", ") || "Serviço padrão"}</span>
+                <span>{item.itens?.join(", ") || "Serviço padrão"}</span>
               </div>
             </div>
           </div>

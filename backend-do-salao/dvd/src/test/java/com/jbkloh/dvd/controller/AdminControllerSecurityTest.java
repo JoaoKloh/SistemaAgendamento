@@ -20,6 +20,7 @@ import com.jbkloh.dvd.config.LimitRequest;
 import com.jbkloh.dvd.config.RSAKeyProperties;
 import com.jbkloh.dvd.config.RateLimiterService;
 import com.jbkloh.dvd.config.SegurancaConfig;
+import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.repository.UsuarioRepository;
 import com.jbkloh.dvd.service.AgendamentoService;
 import com.jbkloh.dvd.service.ServicoPrestadoService;
@@ -49,6 +50,9 @@ class AdminControllerSecurityTest {
 
     @MockitoBean
     private UsuarioRepository usuarioRepository;
+
+    @MockitoBean
+    private SseEmiterManager sseEmiterManager;
 
     @Test
     void semAutenticacao_deveSerRejeitado() throws Exception {

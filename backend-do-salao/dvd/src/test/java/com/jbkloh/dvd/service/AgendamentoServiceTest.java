@@ -21,8 +21,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.exception.AppException;
+import com.jbkloh.dvd.model.AgendamentoEntity;
 import com.jbkloh.dvd.model.ClienteEntity;
 import com.jbkloh.dvd.model.ServicoEntity;
 import com.jbkloh.dvd.repository.AgendamentoRepository;
@@ -43,6 +45,9 @@ class AgendamentoServiceTest {
 
     @Mock
     private ServicoPrestadoService servicoPrestadoService;
+
+    @Mock
+    private SseEmiterManager sseEmiterManager;
 
     @InjectMocks
     private AgendamentoService agendamentoService;
@@ -99,14 +104,25 @@ class AgendamentoServiceTest {
     @Test
     void criarAgendamento_deveSalvarComValorTotalSomado_quandoDadosValidos() {
         AgendamentoRequestDTO req = criarRequestValido();
+        ClienteEntity cliente = new ClienteEntity(req.nome(), req.email(), req.telefone());
+        ServicoEntity servico = criarServico(1L, 70.0);
+
         when(agendamentoRepository.existsByDataAgendamentoAndHoraAgendamento(req.dataAgendamento(), req.horaAgendamento()))
             .thenReturn(false);
         when(agendamentoRepository.existsDuplicidadePorEmailEData(req.email(), req.dataAgendamento()))
             .thenReturn(false);
         when(clienteService.buscarOuCriarCliente(req.nome(), req.email(), req.telefone()))
-            .thenReturn(new ClienteEntity(req.nome(), req.email(), req.telefone()));
+            .thenReturn(cliente);
         when(servicoPrestadoService.validarEObterServicoParaAgendamento(1L))
-            .thenReturn(criarServico(1L, 70.0));
+            .thenReturn(servico);
+        // O service usa a entidade retornada pelo save() para montar o DTO do evento
+        // SSE disparado após a criação, então o mock precisa devolver uma entidade
+        // "salva" (com cliente e itens preenchidos), não apenas `any()`.
+        when(agendamentoRepository.save(any())).thenAnswer(invocation -> {
+            AgendamentoEntity entidade = invocation.getArgument(0);
+            entidade.setAgendamentoId(1L);
+            return entidade;
+        });
 
         var response = agendamentoService.criarAgendamento(req);
 
