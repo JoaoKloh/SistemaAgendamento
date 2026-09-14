@@ -3,6 +3,7 @@ package com.jbkloh.dvd.exception;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,10 +11,15 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 import com.jbkloh.dvd.exception.dto.RestErrorMessage;
 import com.resend.core.exception.ResendException;
 
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -49,6 +55,7 @@ public class GlobalExceptionHandler {
         RestErrorMessage response = new RestErrorMessage(HttpStatus.BAD_REQUEST, mensagemErro);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
+
     @ExceptionHandler(ResendException.class)
     public ResponseEntity<RestErrorMessage> handleResendException(ResendException ex) {
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -62,19 +69,13 @@ public class GlobalExceptionHandler {
         RestErrorMessage response = new RestErrorMessage(status, mensagem);
         return ResponseEntity.status(status).body(response);
     }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<RestErrorMessage> handleIllegalArgumentException(IllegalArgumentException ex) {
         RestErrorMessage response = new RestErrorMessage(HttpStatus.BAD_REQUEST, ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
-    /**
-     * Cobre tanto o {@code AccessDeniedException} clássico (regras de URL do
-     * Spring Security) quanto o {@code AuthorizationDeniedException} lançado
-     * por {@code @PreAuthorize} (que estende {@code AccessDeniedException}).
-     * Sem este handler explícito, o catch-all de {@link Exception} abaixo
-     * transformaria uma negação de autorização em 500 em vez de 403.
-     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<RestErrorMessage> handleAccessDenied(AccessDeniedException ex) {
         RestErrorMessage response = new RestErrorMessage(
@@ -93,13 +94,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException ex) {
+        log.debug("[SSE] Cliente desconectou da stream: {}", ex.getMessage());
+    }
+
     /**
-     * Rede de segurança para qualquer exceção não mapeada explicitamente.
-     * Evita vazar stack traces ou detalhes internos ao cliente, mas registra
-     * o erro completo nos logs para investigação.
+     * Tratador genérico unificado.
+     * Trata o fallback global e intercepta chamadas SSE para evitar conflito de MediaType.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<RestErrorMessage> handleGenericException(Exception ex) {
+    public ResponseEntity<?> handleGenericException(Exception ex, HttpServletRequest request) {
+        String acceptHeader = request.getHeader("Accept");
+
+        // Se o erro ocorreu durante uma requisição SSE, previne o lançamento de HttpMessageNotWritableException
+        if (acceptHeader != null && acceptHeader.contains(MediaType.TEXT_EVENT_STREAM_VALUE)) {
+            log.warn("[SSE] Exceção em stream SSE ignorada: {}", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body("Erro na stream SSE");
+        }
+
         logger.error("Erro inesperado não tratado", ex);
 
         RestErrorMessage response = new RestErrorMessage(

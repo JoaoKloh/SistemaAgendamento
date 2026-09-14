@@ -18,6 +18,7 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
 
     boolean existsByDataAgendamentoAndHoraAgendamento(LocalDate dataAgendamento, LocalTime horaAgendamento);
     Optional<AgendamentoEntity> findByClienteNome(String nome);
+    List<AgendamentoEntity>findByDataAgendamentoOrderByHoraAgendamentoAsc(LocalDate data);
 
     // 1. Quantidade de agendamentos no mês/ano
     @Query("""

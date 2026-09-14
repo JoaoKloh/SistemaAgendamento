@@ -1,9 +1,13 @@
 package com.jbkloh.dvd.controller;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,7 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.request.CriarServicoRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
@@ -24,6 +30,7 @@ import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
 import com.jbkloh.dvd.service.AgendamentoService;
 import com.jbkloh.dvd.service.ServicoPrestadoService;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @RestController
@@ -33,13 +40,36 @@ public class AdminController {
 
     private final AgendamentoService agendamentoService;
     private final ServicoPrestadoService servicoPrestadoService;
+    private final SseEmiterManager sseEmiterManager;
 
     @Autowired
-    public AdminController(AgendamentoService agendamentoService, ServicoPrestadoService servicoPrestadoService) {
+    public AdminController(AgendamentoService agendamentoService, ServicoPrestadoService servicoPrestadoService, SseEmiterManager sseEmiterManager) {
         this.agendamentoService = agendamentoService;
         this.servicoPrestadoService = servicoPrestadoService;
+        this.sseEmiterManager = sseEmiterManager;
     }
 
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamAgendamentosAdmin(HttpServletResponse response) {
+    // Força os cabeçalhos diretamente no HttpServletResponse para o Cloudflare Tunnel
+    response.setHeader("Cache-Control", "no-cache, no-transform");
+    response.setHeader("X-Accel-Buffering", "no");
+    response.setHeader("Connection", "keep-alive");
+    
+    return sseEmiterManager.addEmitter();
+}
+
+    @GetMapping("/agendamentos/dia")
+    public ResponseEntity<List<AgendamentoDetalhadoResponseDTO>> retornarAgendamentosDoDia(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data
+    ) {
+        if (data == null) {
+            data = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        }
+        List<AgendamentoDetalhadoResponseDTO> agendamentos = agendamentoService.retornarAgendamentosDoDia(data);
+        return ResponseEntity.ok(agendamentos);
+    }
+    
     @PostMapping("/criarServico")
     public ResponseEntity<Void> criarServico(@Valid @RequestBody CriarServicoRequestDTO req) {
         servicoPrestadoService.criarServico(req);
@@ -131,7 +161,4 @@ public class AdminController {
         List<ItemRankingResponseDTO> ranking = agendamentoService.retornarTopProdutosDoMes(mes, ano, limite);
         return ResponseEntity.ok(ranking);
     }
-
-    
-
 }

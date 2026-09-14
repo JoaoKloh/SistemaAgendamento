@@ -13,6 +13,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.DispatcherType;
 
 @Component
 public class LimitRequest extends OncePerRequestFilter {
@@ -21,8 +22,18 @@ public class LimitRequest extends OncePerRequestFilter {
     private CacheManager cacheManager;
 
     @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return true;
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) 
             throws ServletException, IOException {
+
+        if (DispatcherType.ASYNC.equals(request.getDispatcherType()) || request.getRequestURI().endsWith("/admin/stream")) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
         if (request.getRequestURI().contains("/gerarcodigo") && "POST".equalsIgnoreCase(request.getMethod())) {
             String ip = request.getRemoteAddr();
