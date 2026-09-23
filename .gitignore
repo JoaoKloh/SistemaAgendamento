@@ -4,4 +4,7 @@
 .env
 *.env
 *.pem
+
+!backend-do-salao/dvd/src/test/resources/keys/
+!backend-do-salao/dvd/src/test/resources/keys/*.pem
 **/src/main/resources/keys/
