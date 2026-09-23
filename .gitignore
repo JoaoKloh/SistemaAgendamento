@@ -1,7 +1,86 @@
-**.claude
-**.vscode
+# ==========================================
+# Configurações de Ambiente e Variáveis Sensíveis
+# ==========================================
 .env
-*.env
+.env.*
+!.env.example
+
+# ==========================================
+# Build e Compilação (Maven / Gradle)
+# ==========================================
+target/
+build/
+.gradle/
+out/
+*.jar
+*.war
+*.ear
+*.rar
+*.class
+
+# Logs
+*.log
+logs/
+
+# ==========================================
+# IDEs e Editores de Código
+# ==========================================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+
+# macOS e Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Arquivos Temp e Cobertura de Testes
+# ==========================================
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+*.swp
+*~
+.tmp
+.DS_Store
+
+
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+
+# Common ignores
+node_modules
+.next/
+.DS_Store
+*.tsbuildinfo
+coverage/
+
+
+
+**.claude
 *.pem
 
 !backend-do-salao/dvd/src/test/resources/keys/
