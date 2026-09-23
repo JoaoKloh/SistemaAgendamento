@@ -15,7 +15,7 @@ target/
 .env.*
 
 # RSA keys
-src/main/resources/keys/*.pem
+src/main/resources/keys/
 
 # OS
 .DS_Store
