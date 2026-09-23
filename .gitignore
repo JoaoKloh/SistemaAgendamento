@@ -84,3 +84,5 @@ coverage/
 !backend-do-salao/dvd/src/test/resources/keys/*.pem
 !backend-do-salao/dvd/src/main/resources/application.properties
 **/src/main/resources/keys/
+
+backend-do-salao/dvd/docker-compose.yml
