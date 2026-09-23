@@ -21,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.exception.AppException;
 import com.jbkloh.dvd.model.AgendamentoEntity;
@@ -47,7 +46,7 @@ class AgendamentoServiceTest {
     private ServicoPrestadoService servicoPrestadoService;
 
     @Mock
-    private SseEmiterManager sseEmiterManager;
+    private SseService sseEmiterManager;
 
     @InjectMocks
     private AgendamentoService agendamentoService;
