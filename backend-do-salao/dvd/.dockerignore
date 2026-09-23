@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Maven
+target/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.*
+
+# RSA keys
+src/main/resources/keys/*.pem
+
+# OS
+.DS_Store

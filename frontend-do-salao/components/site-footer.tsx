@@ -11,13 +11,13 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-secondary/60">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3">
         <div>
-          <p className="font-serif text-lg font-semibold text-foreground">David Rabello</p>
+          <p className="font-title text-lg font-semibold tracking-tight text-foreground">David Rabello</p>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Barbearia e estética masculina no tradicional {salon.name}, no centro de Petrópolis.
           </p>
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.15em] text-foreground">Contato</p>
+        <div id="contato">
+          <p className="font-sans text-xs font-medium uppercase tracking-[0.15em] text-foreground">Contato</p>
           <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
             <li>
               <a
@@ -39,9 +39,21 @@ export function SiteFooter() {
             </li>
             <li>{salon.address}</li>
           </ul>
+
+          <p className="mt-5 font-sans text-xs font-medium uppercase tracking-[0.15em] text-foreground">
+            Horário de funcionamento
+          </p>
+          <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+            {salon.hours.map((h) => (
+              <li key={h.day} className="flex items-center justify-between gap-4">
+                <span>{h.day}</span>
+                <span className="font-medium text-foreground">{h.time}</span>
+              </li>
+            ))}
+          </ul>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.15em] text-foreground">Agende</p>
+          <p className="font-sans text-xs font-medium uppercase tracking-[0.15em] text-foreground">Agende</p>
           <p className="mt-3 text-sm text-muted-foreground">
             Reserve seu horário de forma rápida e online.
           </p>

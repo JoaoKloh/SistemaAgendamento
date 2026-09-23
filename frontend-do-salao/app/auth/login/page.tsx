@@ -14,12 +14,10 @@ function LoginContent() {
   const [email, setEmail] = useState("")
   const [code, setCode] = useState("")
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
-
   const handleEnviarCodeGoogleAoBackend = async (codigoDoGoogle: string) => {
     setIsLoading(true)
     try {
-      const res = await fetch(`${apiUrl}/login/oauthGoogle`, {
+      const res = await fetch(`/api/login/oauthGoogle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -133,7 +131,7 @@ function LoginContent() {
   
     setIsLoading(true)
     try {
-      const res = await fetch(`${apiUrl}/login/gerarcodigo`, {
+      const res = await fetch(`/api/login/gerarcodigo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -180,7 +178,7 @@ function LoginContent() {
   
     setIsLoading(true)
     try {
-      const res = await fetch(`${apiUrl}/login/verificarcodigo`, {
+      const res = await fetch(`/api/login/verificarcodigo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

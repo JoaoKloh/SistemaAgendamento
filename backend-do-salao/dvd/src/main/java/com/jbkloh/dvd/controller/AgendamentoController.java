@@ -41,4 +41,5 @@ public class AgendamentoController {
         List<String> ocupados = agendamentoService.listarHorariosOcupados(data);
         return ResponseEntity.ok(ocupados);
     }
+
 }

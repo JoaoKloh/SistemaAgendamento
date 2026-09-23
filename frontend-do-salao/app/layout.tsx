@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Playfair_Display, Inter } from 'next/font/google'
+import { Playfair_Display, Inter, Instrument_Sans } from 'next/font/google'
 import { Toaster } from 'sonner'
 import './globals.css'
 
@@ -13,6 +13,13 @@ const playfair = Playfair_Display({
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+  display: 'swap',
+})
+
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin'],
+  weight: ['500', '600'],
+  variable: '--font-instrument-sans',
   display: 'swap',
 })
 
@@ -54,7 +61,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className={`light bg-background ${playfair.variable} ${inter.variable}`}>
+    <html
+      lang="pt-BR"
+      className={`light bg-background ${playfair.variable} ${inter.variable} ${instrumentSans.variable}`}
+    >
       <body className="antialiased font-sans">
         {children}
         <Toaster position="top-right" richColors closeButton />

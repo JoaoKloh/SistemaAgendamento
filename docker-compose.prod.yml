@@ -1,0 +1,67 @@
+services:
+
+  db:
+    image: postgres:17-alpine
+    container_name: dvd-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: dvd-backend
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    environment:
+      APPLICATION_NAME: ${APPLICATION_NAME}
+      EXPIRATION_TK_DAYS: ${EXPIRATION_TK_DAYS}
+
+      URL_DB: jdbc:postgresql://db:5432/${DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      RESEND_API_KEY: ${RESEND_API_KEY}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+
+      RSA_PUBLIC_KEY_PATH: /run/secrets/public_key
+      RSA_PRIVATE_KEY_PATH: /run/secrets/private_key
+
+    secrets:
+      - public_key
+      - private_key
+
+    expose:
+      - "8080"
+
+
+volumes:
+  postgres_data:
+
+
+secrets:
+  public_key:
+    file: /opt/cliente/secrets/public.pem
+
+  private_key:
+    file: /opt/cliente/secrets/private.pem

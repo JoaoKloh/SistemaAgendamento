@@ -5,3 +5,11 @@ export interface ServicoDTO {
   duracao: string
   preco: number
 }
+
+export interface ProdutoDTO {
+  id: number
+  nome: string
+  especificacoes?: string
+  preco: number
+  urlImagem?: string | null
+}

@@ -1,9 +1,27 @@
+import { Suspense } from "react"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { Hero } from "@/components/home/hero"
-import { ServicesSection } from "@/components/home/services-section"
+import { ServicesSection, ServicesSectionSkeleton, type ServiceDTO } from "@/components/home/services-section"
 import { AboutSection } from "@/components/home/about-section"
-import { BarbershopSection } from "@/components/home/barbershop-section"
+import { PortfolioSection, PortfolioSectionSkeleton } from "@/components/home/portfolio-section"
+import { backendFetchJson } from "@/lib/server-fetch"
+import type { PortfolioFotoDTO } from "@/lib/types/portfolio"
+
+// Cada seção busca seus próprios dados e fica isolada em um Suspense: o
+// shell da home (Hero, header, footer) renderiza de imediato via streaming
+// SSR, sem esperar /servicos e /portfolio responderem, e cada seção exibe
+// seu próprio skeleton enquanto a busca não termina.
+
+async function ServicesSectionData() {
+  const services = await backendFetchJson<ServiceDTO[]>("/servicos", [])
+  return <ServicesSection services={services} />
+}
+
+async function PortfolioSectionData() {
+  const fotosPortfolio = await backendFetchJson<PortfolioFotoDTO[]>("/portfolio", [])
+  return <PortfolioSection fotos={fotosPortfolio} />
+}
 
 export default function HomePage() {
   return (
@@ -11,9 +29,13 @@ export default function HomePage() {
       <SiteHeader />
       <main className="flex-1">
         <Hero />
-        <ServicesSection />
+        <Suspense fallback={<ServicesSectionSkeleton />}>
+          <ServicesSectionData />
+        </Suspense>
         <AboutSection />
-        <BarbershopSection />
+        <Suspense fallback={<PortfolioSectionSkeleton />}>
+          <PortfolioSectionData />
+        </Suspense>
       </main>
       <SiteFooter />
     </div>

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 const navLinks = [
   { href: "/#servicos", label: "Serviços" },
   { href: "/#sobre", label: "Sobre" },
-  { href: "/#barbearia", label: "A Barbearia" },
+  { href: "/#portfolio", label: "Portfólio" },
   { href: "/#contato", label: "Contato" },
   { href: "/auth/login", label: "Login" },
 ]
@@ -53,10 +53,10 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex flex-col leading-none" onClick={() => setIsOpen(false)}>
-          <span className="font-serif text-lg font-semibold tracking-tight text-foreground">
+          <span className="font-title text-lg font-semibold tracking-tight text-foreground">
             David Rabello
           </span>
-          <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="font-sans text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Salão Ideal
           </span>
         </Link>

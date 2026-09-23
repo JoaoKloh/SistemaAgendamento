@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
@@ -36,7 +35,7 @@ public class AgendamentoService {
     private final AgendamentoRepository agendamentoRepository;
     private final ClienteService clienteService;
     private final ServicoPrestadoService servicoPrestadoService;
-    private final SseEmiterManager sseEmiterManager;
+    private final SseService sseService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     /**
@@ -102,39 +101,55 @@ public class AgendamentoService {
                 @Override
                 public void afterCommit() {
                     log.info("[SSE] Transação commitada com sucesso. Disparando sendToAll...");
-                    sseEmiterManager.sendToAll(sseDto);
+                    sseService.notificarNovoAgendamento(sseDto);
                 }
             });
         } else {
             log.info("[SSE] Nenhuma transação ativa detectada. Disparando sendToAll diretamente...");
-            sseEmiterManager.sendToAll(sseDto);
+            sseService.notificarNovoAgendamento(sseDto);
         }
 
         return new AgendamentoResponseDTO(req.dataAgendamento(), req.horaAgendamento());
     }
 
     @Transactional
-    public AgendamentoResponseDTO atualizarAgendamento(AgendamentoUpdateRequestDTO req) {
-        AgendamentoEntity agendamentoExistente = agendamentoRepository.findById(req.idAgendamento())
-                .orElseThrow(() -> new AppException("Não existe agendamento correspondente ao ID informado", HttpStatus.BAD_REQUEST));
+    public AgendamentoDetalhadoResponseDTO atualizarAgendamento(AgendamentoUpdateRequestDTO req) {
+        AgendamentoEntity agendamento = agendamentoRepository.findById(req.idAgendamento())
+        .orElseThrow(() -> new AppException("Agendamento não encontrado", HttpStatus.NOT_FOUND));
 
         List<ServicoEntity> novosItens = req.itensIds().stream()
                 .map(servicoPrestadoService::validarEObterServicoParaAgendamento)
-                .toList();
+                .collect(Collectors.toList());
 
         Double novoValorTotal = novosItens.stream()
                 .mapToDouble(ServicoEntity::getPreco)
                 .sum();
 
-        agendamentoExistente.setDataAgendamento(req.dataAgendamento());
-        agendamentoExistente.setHoraAgendamento(req.horaAgendamento());
-        agendamentoExistente.setStatusAgendamento(req.statusAgendamento());
-        agendamentoExistente.setItens(novosItens);
-        agendamentoExistente.setValorTotal(novoValorTotal);
+                agendamento.setDataAgendamento(req.dataAgendamento());
+                agendamento.setHoraAgendamento(req.horaAgendamento());
+                agendamento.setStatusAgendamento(req.statusAgendamento());
+                agendamento.setValorTotal(novoValorTotal);
+            
+                agendamento.getItens().clear();
+                agendamento.getItens().addAll(novosItens);
+        
+        agendamentoRepository.save(agendamento);
 
-        agendamentoRepository.save(agendamentoExistente);
+        AgendamentoEntity agendamentoSalvo = agendamentoRepository.save(agendamento);
+        AgendamentoDetalhadoResponseDTO sseDto = new AgendamentoDetalhadoResponseDTO(agendamentoSalvo);
 
-        return new AgendamentoResponseDTO(req.dataAgendamento(), req.horaAgendamento());
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sseService.notificarNovoAgendamento(sseDto);
+                }
+            });
+        } else {
+            sseService.notificarNovoAgendamento(sseDto);
+        }
+
+        return sseDto;
     }
     @Transactional
     public void deletarAgendamento(Long id) {

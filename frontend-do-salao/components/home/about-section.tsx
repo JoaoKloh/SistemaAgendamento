@@ -24,10 +24,10 @@ export function AboutSection() {
         </div>
 
         <div className="order-1 md:order-2">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="font-sans text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Sobre o profissional
           </p>
-          <h2 className="mt-3 text-balance font-serif text-3xl font-semibold text-foreground sm:text-4xl">
+          <h2 className="mt-3 text-balance font-title text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             David Rabello
           </h2>
           <p className="mt-5 leading-relaxed text-muted-foreground">

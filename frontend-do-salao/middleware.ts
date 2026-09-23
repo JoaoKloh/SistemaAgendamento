@@ -26,7 +26,15 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 3. Tenta acessar rota de Admin E possui token
+  // 3. Tenta acessar rota de Admin sem nenhum token — antes só o passo abaixo
+  // (isAdminRoute && token) existia, então uma visita SEM cookie nenhum caía
+  // direto no NextResponse.next() e a casca visual do admin era renderizada
+  // mesmo deslogado (o backend barrava só os dados, via Spring Security).
+  if (isAdminRoute && !token) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  // 4. Tenta acessar rota de Admin E possui token
   if (isAdminRoute && token) {
     try {
       const payload = decodeJwt(token)

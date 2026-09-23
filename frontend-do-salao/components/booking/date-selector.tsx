@@ -16,7 +16,7 @@ export function DateSelector({ days, selectedDayFormatted, onSelect }: DateSelec
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
           2
         </span>
-        Escolha o dia
+        Selecione o dia
       </h2>
       <div className="mt-3 flex w-full gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
         {days.map(({ dateObj, formattedDate }) => {

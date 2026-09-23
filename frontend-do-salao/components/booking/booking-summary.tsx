@@ -32,7 +32,7 @@ export function BookingSummary({
   return (
     <aside className="w-full min-w-0 lg:sticky lg:top-24 lg:self-start">
       <div className="rounded-2xl border border-border bg-card p-4 shadow-xs sm:p-6">
-        <h2 className="font-serif text-lg font-semibold text-foreground sm:text-xl">Resumo do agendamento</h2>
+        <h2 className="font-title text-lg font-semibold tracking-tight text-foreground sm:text-xl">Resumo do agendamento</h2>
 
         <dl className="mt-4 space-y-2.5 text-sm">
           <div className="flex flex-col gap-1">

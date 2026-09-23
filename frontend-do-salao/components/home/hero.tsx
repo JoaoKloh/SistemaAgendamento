@@ -1,9 +1,45 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Star, MapPin, CalendarCheck } from "lucide-react"
 import { salon } from "@/lib/data"
 import { useEffect, useRef } from "react"
+
+const HERO_CAROUSEL_IMAGES = [
+  "/images/dvd_image_02.png",
+  "/images/dvd_image_03.png",
+  "/images/dvd_image_04.png",
+  "/images/dvd_image_05.png",
+  "/images/dvd_image_06.png",
+]
+
+const CAROUSEL_INTERVAL_MS = 4000
+const CAROUSEL_CYCLE_MS = CAROUSEL_INTERVAL_MS * HERO_CAROUSEL_IMAGES.length
+
+// Crossfade feita em CSS (compositor) em vez de setInterval + estado React,
+// evitando re-render e trabalho de JS a cada troca de slide.
+function HeroCarousel() {
+  return (
+    <div className="relative h-full w-full">
+      {HERO_CAROUSEL_IMAGES.map((src, index) => (
+        <Image
+          key={src}
+          src={src}
+          alt={`${salon.name} - foto ${index + 1}`}
+          fill
+          priority={index === 0}
+          sizes="(min-width: 768px) 50vw, 100vw"
+          className="hero-carousel-slide object-cover"
+          style={{
+            animationDuration: `${CAROUSEL_CYCLE_MS}ms`,
+            animationDelay: `${-index * CAROUSEL_INTERVAL_MS}ms`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 const VERTEX_SHADER = `
 attribute vec2 a_position;
@@ -228,9 +264,23 @@ function ShaderBackground() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    
+
+    // Sem alpha/depth/stencil/antialias: o shader desenha um único triângulo
+    // opaco que cobre toda a tela (sem profundidade, stencil ou bordas de
+    // polígono visíveis), então esses buffers nunca são usados — desativá-los
+    // economiza memória e bytes de banda da GPU sem alterar o resultado.
+    const contextAttributes: WebGLContextAttributes = {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "low-power",
+      preserveDrawingBuffer: false,
+    }
+
     // Suporte amplo a navegadores móveis (iOS Safari / Android Chrome)
-    const gl = (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null
+    const gl = (canvas.getContext("webgl", contextAttributes) ||
+      canvas.getContext("experimental-webgl", contextAttributes)) as WebGLRenderingContext | null
     if (!gl) return
 
     const compileShader = (type: number, source: string) => {
@@ -296,6 +346,41 @@ function ShaderBackground() {
     gl.uniform4f(loc_surface, 1.82, 1.15, -0.01, 0.90)
     gl.uniform4f(loc_finish, 5.48, 0.34, 0.000, 0.04)
     gl.uniform4f(loc_transform, 7439.0, 0.00, 0.03, 1.0)
+    // u_space e u_cursor nunca mudam entre frames: setados uma única vez
+    // aqui em vez de a cada requestAnimationFrame.
+    gl.uniform4f(loc_space, -0.01, 0.17, 0.0, 0.0)
+    gl.uniform4f(loc_cursor, 0.0, 0.0, 0.84, 0.36)
+
+    // Tamanho do canvas cacheado via ResizeObserver em vez de
+    // getBoundingClientRect() a cada frame (evita forçar layout 60x/s).
+    const sizeRef = { width: 0, height: 0 }
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const box = entry.contentBoxSize?.[0]
+      if (box) {
+        sizeRef.width = box.inlineSize
+        sizeRef.height = box.blockSize
+      } else {
+        sizeRef.width = entry.contentRect.width
+        sizeRef.height = entry.contentRect.height
+      }
+    })
+    resizeObserver.observe(canvas)
+    const initialRect = canvas.getBoundingClientRect()
+    sizeRef.width = initialRect.width
+    sizeRef.height = initialRect.height
+
+    // Pausa o desenho quando o canvas sai da viewport (ex.: usuário rola a
+    // página além da Hero), economizando GPU/CPU sem afetar o visual.
+    let isVisible = true
+    const intersectionObserver = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry?.isIntersecting ?? true
+      },
+      { threshold: 0 }
+    )
+    intersectionObserver.observe(canvas)
 
     let animationFrameId: number
     const startTime = Date.now()
@@ -303,15 +388,14 @@ function ShaderBackground() {
     const render = () => {
       animationFrameId = requestAnimationFrame(render)
 
-      if (document.hidden) return
+      if (document.hidden || !isVisible) return
 
       // DPR máximo de 1.5 para garantir performance suave e economizar bateria em celulares
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
-      const rect = canvas.getBoundingClientRect()
-      const width = Math.floor(rect.width * dpr)
-      const height = Math.floor(rect.height * dpr)
+      const width = Math.floor(sizeRef.width * dpr)
+      const height = Math.floor(sizeRef.height * dpr)
 
-      if (canvas.width !== width || canvas.height !== height) {
+      if (width > 0 && height > 0 && (canvas.width !== width || canvas.height !== height)) {
         canvas.width = width
         canvas.height = height
         gl.viewport(0, 0, canvas.width, canvas.height)
@@ -320,8 +404,6 @@ function ShaderBackground() {
       const time = (Date.now() - startTime) / 1000
 
       gl.uniform4f(loc_scene, canvas.width, canvas.height, time * -0.57, 4.0)
-      gl.uniform4f(loc_space, -0.01, 0.17, 0.0, 0.0)
-      gl.uniform4f(loc_cursor, 0.0, 0.0, 0.84, 0.36)
 
       gl.drawArrays(gl.TRIANGLES, 0, 3)
     }
@@ -330,6 +412,8 @@ function ShaderBackground() {
 
     return () => {
       cancelAnimationFrame(animationFrameId)
+      resizeObserver.disconnect()
+      intersectionObserver.disconnect()
       gl.deleteProgram(program)
       gl.deleteShader(vert)
       gl.deleteShader(frag)
@@ -350,11 +434,11 @@ export function Hero() {
       <ShaderBackground />
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 md:grid-cols-2 md:py-24 w-full">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs uppercase tracking-[0.15em] text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-sans text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
             <Star className="h-3.5 w-3.5 fill-accent-foreground text-accent-foreground" />
             Avaliação máxima em Petrópolis
           </span>
-          <h1 className="mt-6 text-balance font-serif text-4xl font-semibold leading-tight text-foreground sm:text-5xl md:text-6xl">
+          <h1 className="mt-6 text-balance font-title text-4xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl">
             A arte do corte masculino, com assinatura de David Rabello
           </h1>
           <p className="mt-5 max-w-md text-pretty leading-relaxed text-muted-foreground">
@@ -384,20 +468,11 @@ export function Hero() {
 
         <div className="relative">
           <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-border shadow-sm">
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              className="h-full w-full object-cover"
-            >
-              <source src="/videos/dvd_video_01.mp4" type="video/mp4" />
-            </video>
+            <HeroCarousel />
           </div>
           <div className="absolute -bottom-5 -left-5 hidden rounded-2xl border border-border bg-card px-5 py-4 shadow-md sm:block">
-            <p className="font-serif text-2xl font-semibold text-foreground">{salon.rating}</p>
-            <p className="text-xs text-muted-foreground">{salon.reviews} avaliações</p>
+            <p className="font-title text-2xl font-semibold tracking-tight text-foreground">{salon.rating}</p>
+            <p className="font-sans text-xs text-muted-foreground">{salon.reviews} avaliações</p>
           </div>
         </div>
       </div>

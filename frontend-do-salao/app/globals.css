@@ -7,6 +7,7 @@
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+  --font-title: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   --color-beige: var(--beige);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -163,5 +164,35 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .hero-carousel-slide {
+    animation-name: hero-carousel-fade;
+    animation-iteration-count: infinite;
+    will-change: opacity;
+  }
+}
+
+@keyframes hero-carousel-fade {
+  0% {
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  15% {
+    opacity: 1;
+    animation-timing-function: ease-in-out;
+  }
+  20% {
+    opacity: 0;
+    animation-timing-function: linear;
+  }
+  95% {
+    opacity: 0;
+    animation-timing-function: ease-in-out;
+  }
+  100% {
+    opacity: 1;
   }
 }

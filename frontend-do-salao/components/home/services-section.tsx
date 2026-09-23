@@ -1,7 +1,4 @@
-"use client"
-
 import Link from "next/link"
-import useSWR from "swr"
 import { Scissors } from "lucide-react"
 
 export interface ServiceDTO {
@@ -10,24 +7,6 @@ export interface ServiceDTO {
   detalhes: string
   duracao: string
   preco: number
-}
-
-const fetcher = async (url: string) => {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-  })
-
-  if (!res.ok) {
-    try {
-      const errorBody = await res.json()
-      throw new Error(errorBody.message || errorBody.error || "Erro ao carregar serviços.")
-    } catch (e: any) {
-      if (e.message && e.message !== "[object Object]") throw e
-      throw new Error(`Erro ${res.status}: ${res.statusText}`)
-    }
-  }
-
-  return res.json()
 }
 
 function formatarDuracao(duracao: string): string {
@@ -42,28 +21,54 @@ function formatarDuracao(duracao: string): string {
   return `${minutos} min`
 }
 
-export function ServicesSection() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+interface ServicesSectionProps {
+  services: ServiceDTO[]
+}
 
-  const { data: services, error, isLoading } = useSWR<ServiceDTO[]>(
-    `${apiUrl}/servicos`,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      revalidateIfStale: false,
-      shouldRetryOnError: false,
-    }
+/**
+ * Placeholder exibido via Suspense enquanto a busca de /servicos (feita no
+ * servidor) ainda está em andamento, para a seção não travar o restante da
+ * home no streaming da resposta.
+ */
+export function ServicesSectionSkeleton() {
+  return (
+    <section className="w-full overflow-hidden border-t border-border bg-card">
+      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 md:py-24">
+        <div className="max-w-2xl">
+          <p className="font-sans text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            Serviços
+          </p>
+          <h2 className="mt-3 text-balance font-title text-2xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            Cada detalhe pensado para o seu estilo
+          </h2>
+        </div>
+
+        <div className="mt-8 grid w-full grid-cols-1 gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-48 animate-pulse rounded-2xl border border-border bg-muted/50"
+            />
+          ))}
+        </div>
+      </div>
+    </section>
   )
+}
 
+/**
+ * Presentational: os dados já chegam prontos do Server Component (app/page.tsx),
+ * carregados em uma única busca no servidor. Nenhum fetch acontece aqui.
+ */
+export function ServicesSection({ services }: ServicesSectionProps) {
   return (
     <section id="servicos" className="w-full overflow-hidden border-t border-border bg-card">
       <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 md:py-24">
         <div className="max-w-2xl">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="font-sans text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Serviços
           </p>
-          <h2 className="mt-3 text-balance font-serif text-2xl font-semibold text-foreground sm:text-4xl">
+          <h2 className="mt-3 text-balance font-title text-2xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Cada detalhe pensado para o seu estilo
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:mt-4 sm:text-base">
@@ -71,24 +76,15 @@ export function ServicesSection() {
           </p>
         </div>
 
-        {error && (
-          <div className="mt-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive sm:text-sm">
-            {error.message}
+        {services.length === 0 && (
+          <div className="mt-6 rounded-xl border border-border/60 bg-background/50 p-4 text-xs text-muted-foreground sm:text-sm">
+            Nenhum serviço disponível no momento.
           </div>
         )}
 
         {/* Grid Contido: 1 coluna no mobile, 2 no tablet, 4 no desktop */}
         <div className="mt-8 grid w-full grid-cols-1 gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4">
-          {isLoading &&
-            Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-[230px] w-full animate-pulse rounded-2xl border border-border/60 bg-background/50 p-6"
-              />
-            ))}
-
-          {!isLoading &&
-            services?.map((service) => (
+          {services.map((service) => (
               <div
                 key={service.id}
                 className="flex w-full min-w-0 flex-col justify-between rounded-2xl border border-border bg-background p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6"
@@ -99,7 +95,7 @@ export function ServicesSection() {
                   </span>
                   
                   {/* Força a quebra do título se for longo */}
-                  <h3 className="mt-4 break-words font-serif text-lg font-semibold capitalize text-foreground sm:text-xl">
+                  <h3 className="mt-4 break-words font-title text-lg font-semibold capitalize tracking-tight text-foreground sm:text-xl">
                     {service.nome}
                   </h3>
                   

@@ -24,31 +24,18 @@ public class ClienteService {
     private final UsuarioRepository usuarioRepository;
 
     @Transactional
-    public ClienteEntity buscarOuCriarCliente(String nome, String email, String telefone){
-        String nomeUpper = nome.toUpperCase(); 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            String emailUsuarioLogado = auth.getName(); 
-            UsuarioEntity usuario = usuarioRepository.findByEmail(emailUsuarioLogado)
-                .orElseThrow(() -> new AppException("Usuário autenticado não encontrado.", HttpStatus.NOT_FOUND));
-                
-        return clienteRepository.findByEmail(email)
-                .map(clienteExistente -> {
-                    if (clienteExistente.getUsuario() == null) {
-                        clienteExistente.setUsuario(usuario);
-                    }
-                    return clienteRepository.save(clienteExistente);
-                })
-                .orElseGet(() -> {
-                    ClienteEntity novoCliente = new ClienteEntity();
-                    novoCliente.setNome(nomeUpper);
-                    novoCliente.setEmail(usuario.getEmail());
-                    novoCliente.setTelefone(telefone);
-                    novoCliente.setUsuario(usuario);
-                    return clienteRepository.save(novoCliente);
-                });
-        }
-        return clienteRepository.findByEmail(email)
+public ClienteEntity buscarOuCriarCliente(String nome, String email, String telefone) {
+    String nomeUpper = nome.toUpperCase(); 
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+    // 1. Fluxo para Usuário Autenticado
+    if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+        String emailUsuarioLogado = auth.getName(); 
+        UsuarioEntity usuario = usuarioRepository.findByEmail(emailUsuarioLogado)
+            .orElseThrow(() -> new AppException("Usuário autenticado não encontrado.", HttpStatus.NOT_FOUND));
+
+        // Busca o cliente prioritariamente pelo e-mail do usuário autenticado
+        return clienteRepository.findByEmail(usuario.getEmail())
             .map(clienteExistente -> {
                 if (!Objects.equals(clienteExistente.getNome(), nomeUpper)) {
                     clienteExistente.setNome(nomeUpper);
@@ -56,18 +43,39 @@ public class ClienteService {
                 if (!Objects.equals(clienteExistente.getTelefone(), telefone)) {
                     clienteExistente.setTelefone(telefone);
                 }
-                if(!Objects.equals(clienteExistente.getEmail(), email)){
-                    clienteExistente.setEmail(email);
+                if (clienteExistente.getUsuario() == null) {
+                    clienteExistente.setUsuario(usuario);
                 }
                 return clienteRepository.save(clienteExistente);
             })
             .orElseGet(() -> {
                 ClienteEntity novoCliente = new ClienteEntity();
                 novoCliente.setNome(nomeUpper);
-                novoCliente.setEmail(email);
+                novoCliente.setEmail(usuario.getEmail());
                 novoCliente.setTelefone(telefone);
-                novoCliente.setUsuario(null);
+                novoCliente.setUsuario(usuario);
                 return clienteRepository.save(novoCliente);
             });
     }
+
+    // 2. Fluxo para Usuário Anônimo / Visitante
+    return clienteRepository.findByEmail(email)
+        .map(clienteExistente -> {
+            if (!Objects.equals(clienteExistente.getNome(), nomeUpper)) {
+                clienteExistente.setNome(nomeUpper);
+            }
+            if (!Objects.equals(clienteExistente.getTelefone(), telefone)) {
+                clienteExistente.setTelefone(telefone);
+            }
+            return clienteRepository.save(clienteExistente);
+        })
+        .orElseGet(() -> {
+            ClienteEntity novoCliente = new ClienteEntity();
+            novoCliente.setNome(nomeUpper);
+            novoCliente.setEmail(email);
+            novoCliente.setTelefone(telefone);
+            novoCliente.setUsuario(null);
+            return clienteRepository.save(novoCliente);
+        });
+}
 }

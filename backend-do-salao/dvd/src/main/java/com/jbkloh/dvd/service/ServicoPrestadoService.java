@@ -70,6 +70,7 @@ public class ServicoPrestadoService {
         entity.setDuracao(null); // Produtos não possuem tempo de execução
         entity.setTipo(TipoItem.PRODUTO);
         entity.setEstaAtivo(true);
+        entity.setUrlImagem(req.urlImagem());
 
         servicoRepository.save(entity);
     }

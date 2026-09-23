@@ -1,11 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
+
+  agentRules: false,
+
   typescript: {
     ignoreBuildErrors: true,
   },
+
   images: {
     unoptimized: true,
   },
+
   allowedDevOrigins: [
     '*.trycloudflare.com',
     '*.loca.lt',
@@ -14,14 +20,12 @@ const nextConfig = {
     '*.serveousercontent.com',
     '*.serveo.net',
   ],
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`,
-      },
-    ]
-  },
+
+  // O proxy do BFF agora é o Route Handler em app/api/[...path]/route.ts:
+  // ele repassa a chamada para BACKEND_API_URL removendo Origin/Referer do
+  // navegador, o que evita o filtro de CORS do Spring rejeitar a chamada
+  // (um simples rewrite mantinha esses cabeçalhos e o backend respondia
+  // 403 "Invalid CORS request").
 }
 
 export default nextConfig

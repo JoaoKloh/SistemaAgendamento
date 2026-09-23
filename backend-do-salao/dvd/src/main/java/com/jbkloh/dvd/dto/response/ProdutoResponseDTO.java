@@ -6,14 +6,16 @@ public record ProdutoResponseDTO(
     Long id,
     String nome,
     Double preco,
-    String especificacoes
+    String especificacoes,
+    String urlImagem
 ) {
     public ProdutoResponseDTO(ServicoEntity entity) {
         this(
             entity.getId(),
             entity.getNome(),
             entity.getPreco(),
-            entity.getEspecificacoes()
+            entity.getEspecificacoes(),
+            entity.getUrlImagem()
         );
     }
 }

@@ -1,4 +1,6 @@
 **/application.properties
+**.claude
+**.vscode
 .env
 *.env
 *.pem

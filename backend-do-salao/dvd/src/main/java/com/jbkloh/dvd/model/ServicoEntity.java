@@ -47,4 +47,8 @@ public class ServicoEntity {
 
     @Column(name = "esta_ativo", nullable = false)
     private Boolean estaAtivo = true;
+
+    // Nulo para serviços: apenas produtos possuem foto
+    @Column(name = "url_imagem", length = 2048)
+    private String urlImagem;
 }

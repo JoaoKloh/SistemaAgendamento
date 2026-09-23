@@ -61,6 +61,7 @@ public class SegurancaConfig {
                 .requestMatchers("/agendamento/**").permitAll()
                 .requestMatchers("/login/**").permitAll()
                 .requestMatchers("/servicos/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/portfolio/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

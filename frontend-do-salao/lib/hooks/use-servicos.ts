@@ -9,10 +9,14 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 /**
  * Carrega a lista de serviços/produtos disponíveis para agendamento.
  * Usa SWR para cache e deduplicação de requisições entre montagens.
+ * `fallbackData` recebe o array já buscado via SSR pelo Server Component
+ * (app/agendamento/page.tsx), então nenhum fetch roda no primeiro render —
+ * o hook só revalida em segundo plano a partir daí.
  */
-export function useServicos() {
+export function useServicos(fallbackData?: ServicoDTO[]) {
   const { data, error, isLoading } = useSWR<ServicoDTO[]>("/api/servicos", fetcher, {
     revalidateOnFocus: false,
+    fallbackData,
   })
 
   return {

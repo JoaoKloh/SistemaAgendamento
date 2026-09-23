@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   Scissors,
   Calendar,
-  Users,
+  Images,
   LogOut,
   Menu,
   X,
@@ -21,14 +21,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Serviços & Produtos", href: "/admin/servicos", icon: Scissors },
     { name: "Agendamentos", href: "/admin/agendamentos", icon: Calendar },
-    { name: "Clientes", href: "/admin/clientes", icon: Users },
+    { name: "Portfólio", href: "/admin/portfolio", icon: Images },
   ]
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground">
       {/* HEADER ÚNICO E EXCLUSIVO PARA MOBILE */}
       <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-border bg-card px-4 md:hidden">
-        <span className="font-serif text-lg font-bold text-foreground">Painel DVD</span>
+        <span className="font-title text-lg font-semibold tracking-tight text-foreground">Painel DVD</span>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Menu"
@@ -42,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* SIDEBAR DESKTOP */}
         <aside className="hidden h-screen w-64 shrink-0 flex-col justify-between border-r border-border bg-card p-6 md:sticky md:top-0 md:flex">
           <div className="w-full">
-            <div className="mb-8 font-serif text-xl font-bold text-foreground">
+            <div className="mb-8 font-title text-xl font-semibold tracking-tight text-foreground">
               Painel DVD
             </div>
             <nav className="w-full space-y-1.5">
@@ -78,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 flex flex-col bg-card p-6 md:hidden">
             <div className="flex items-center justify-between border-b border-border pb-4">
-              <span className="font-serif text-xl font-bold text-foreground">Painel DVD</span>
+              <span className="font-title text-xl font-semibold tracking-tight text-foreground">Painel DVD</span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="rounded-lg p-2 text-foreground"

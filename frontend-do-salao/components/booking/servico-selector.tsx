@@ -18,7 +18,7 @@ export function ServicoSelector({ servicos, selectedItensIds, onToggle }: Servic
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
           1
         </span>
-        Escolha os serviços ou produtos
+        Selecione os serviços desejado:
       </h2>
       <div className="mt-3 grid gap-2.5 sm:grid-cols-2 sm:gap-3">
         {servicos.map((s) => {

@@ -21,14 +21,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.jbkloh.dvd.config.SseEmiterManager;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.request.CriarServicoRequestDTO;
+import com.jbkloh.dvd.dto.request.PortfolioRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
-import com.jbkloh.dvd.dto.response.AgendamentoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
+import com.jbkloh.dvd.dto.response.PortfolioResponseDTO;
 import com.jbkloh.dvd.service.AgendamentoService;
+import com.jbkloh.dvd.service.PortfolioService;
 import com.jbkloh.dvd.service.ServicoPrestadoService;
+import com.jbkloh.dvd.service.SseService;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -40,26 +42,33 @@ public class AdminController {
 
     private final AgendamentoService agendamentoService;
     private final ServicoPrestadoService servicoPrestadoService;
-    private final SseEmiterManager sseEmiterManager;
+    private final SseService sseService;
+    private final PortfolioService portfolioService;
 
     @Autowired
-    public AdminController(AgendamentoService agendamentoService, ServicoPrestadoService servicoPrestadoService, SseEmiterManager sseEmiterManager) {
+    public AdminController(
+            AgendamentoService agendamentoService,
+            ServicoPrestadoService servicoPrestadoService,
+            SseService sseService,
+            PortfolioService portfolioService
+    ) {
         this.agendamentoService = agendamentoService;
         this.servicoPrestadoService = servicoPrestadoService;
-        this.sseEmiterManager = sseEmiterManager;
+        this.sseService = sseService;
+        this.portfolioService = portfolioService;
     }
 
-    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public SseEmitter streamAgendamentosAdmin(HttpServletResponse response) {
-    // Força os cabeçalhos diretamente no HttpServletResponse para o Cloudflare Tunnel
-    response.setHeader("Cache-Control", "no-cache, no-transform");
-    response.setHeader("X-Accel-Buffering", "no");
-    response.setHeader("Connection", "keep-alive");
-    
-    return sseEmiterManager.addEmitter();
-}
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Connection", "keep-alive");
+        response.setContentType("text/event-stream;charset=UTF-8");
 
-    @GetMapping("/agendamentos/dia")
+        return sseService.inscricaoStreamAdmin();
+    }
+
+    @GetMapping("/agendamento/dia")
     public ResponseEntity<List<AgendamentoDetalhadoResponseDTO>> retornarAgendamentosDoDia(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data
     ) {
@@ -88,9 +97,21 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/criar/portfolio")
+    public ResponseEntity<PortfolioResponseDTO> criarFotoPortfolio(@Valid @RequestBody PortfolioRequestDTO req) {
+        PortfolioResponseDTO response = portfolioService.criarFoto(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/deletar/portfolio/{id}")
+    public ResponseEntity<Void> apagarFotoPortfolio(@PathVariable Long id) {
+        portfolioService.deletarFoto(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/atualizar")
-    public ResponseEntity<AgendamentoResponseDTO> atualizarAgendamento(@Valid @RequestBody AgendamentoUpdateRequestDTO req) {
-        AgendamentoResponseDTO response = agendamentoService.atualizarAgendamento(req);
+    public ResponseEntity<AgendamentoDetalhadoResponseDTO> atualizarAgendamento(@Valid @RequestBody AgendamentoUpdateRequestDTO req) {
+        AgendamentoDetalhadoResponseDTO response = agendamentoService.atualizarAgendamento(req);
         return ResponseEntity.ok(response);
     }
 

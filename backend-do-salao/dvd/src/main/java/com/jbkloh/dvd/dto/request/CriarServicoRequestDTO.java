@@ -7,6 +7,7 @@ public record CriarServicoRequestDTO(
     String nome,
     String detalhes,
     LocalTime duracao,
-    String tipo
+    String tipo,
+    String urlImagem
 ) {
 }
