@@ -52,6 +52,9 @@ class AgendamentoServiceTest {
     @Mock
     private SseService sseEmiterManager;
 
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private AgendamentoService agendamentoService;
 

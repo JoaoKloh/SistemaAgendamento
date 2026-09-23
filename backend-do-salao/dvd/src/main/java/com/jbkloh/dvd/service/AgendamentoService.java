@@ -39,6 +39,7 @@ public class AgendamentoService {
     private final ClienteService clienteService;
     private final ServicoPrestadoService servicoPrestadoService;
     private final SseService sseService;
+    private final EmailService emailService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final ZoneId ZONA_SAO_PAULO = ZoneId.of("America/Sao_Paulo");
@@ -112,11 +113,13 @@ public class AgendamentoService {
                 public void afterCommit() {
                     log.info("[SSE] Transação commitada com sucesso. Disparando sendToAll...");
                     sseService.notificarNovoAgendamento(sseDto);
+                    emailService.enviarEmailAgendamentoConfirmado(sseDto);
                 }
             });
         } else {
             log.info("[SSE] Nenhuma transação ativa detectada. Disparando sendToAll diretamente...");
             sseService.notificarNovoAgendamento(sseDto);
+            emailService.enviarEmailAgendamentoConfirmado(sseDto);
         }
 
         return new AgendamentoResponseDTO(req.dataAgendamento(), req.horaAgendamento());
