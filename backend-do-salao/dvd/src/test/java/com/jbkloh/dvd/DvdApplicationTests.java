@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
     "APPLICATION_NAME=dvd",
     "api.security.refresh.expiration-days=7",
     "url.frontend=http://localhost:3000",
-    "RESEND_API_KEY=test",
+	"resend.api.key=test",
     "GOOGLE_CLIENT_ID=test",
     "GOOGLE_CLIENT_SECRET=test",
     "RSA_PUBLIC_KEY_PATH=src/test/resources/keys/public.pem",
