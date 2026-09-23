@@ -23,8 +23,8 @@ public class RSAKeyProperties {
     private final RSAPrivateKey privateKey;
 
     public RSAKeyProperties(
-            @Value("${RSA_PUBLIC_KEY_PATH}") String publicKeyPath,
-            @Value("${RSA_PRIVATE_KEY_PATH}") String privateKeyPath) throws Exception {
+            @Value("${rsa.public-key-path}") String publicKeyPath,
+            @Value("${rsa.private-key-path}") String privateKeyPath) throws Exception {
 
         this.publicKey = loadPublicKey(publicKeyPath);
         this.privateKey = loadPrivateKey(privateKeyPath);

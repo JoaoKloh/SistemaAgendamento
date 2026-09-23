@@ -5,13 +5,12 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
-import com.jbkloh.dvd.enums.TipoItem;
+import com.jbkloh.dvd.dto.response.ItemRankingComTipoResponseDTO;
+import com.jbkloh.dvd.dto.response.ResumoAgendamentosResponseDTO;
 import com.jbkloh.dvd.model.AgendamentoEntity;
 
 public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, Long> {
@@ -20,15 +19,6 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
     Optional<AgendamentoEntity> findByClienteNome(String nome);
     List<AgendamentoEntity>findByDataAgendamentoOrderByHoraAgendamentoAsc(LocalDate data);
 
-    // 1. Quantidade de agendamentos no mês/ano
-    @Query("""
-        SELECT COUNT(a) 
-        FROM AgendamentoEntity a 
-        WHERE MONTH(a.dataAgendamento) = :mes 
-          AND YEAR(a.dataAgendamento) = :ano
-    """)
-    Integer retornarQuantidadeAgendamentosDoMes(@Param("mes") Integer mes, @Param("ano") Integer ano);
-
     @Query("""
         SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END
         FROM AgendamentoEntity a
@@ -36,58 +26,44 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
           AND a.dataAgendamento = :dataAgendamento
     """)
     boolean existsDuplicidadePorEmailEData(
-        @Param("email") String email, 
+        @Param("email") String email,
         @Param("dataAgendamento") LocalDate dataAgendamento
     );
-    
-    // 2. Faturamento usando o campo 'valorTotal' da entidade
-    @Query("""
-        SELECT COALESCE(SUM(a.valorTotal), 0.0)
-        FROM AgendamentoEntity a
-        WHERE MONTH(a.dataAgendamento) = :mes
-          AND YEAR(a.dataAgendamento) = :ano
-    """)
-    Double calcularFaturamentoDoMes(@Param("mes") Integer mes, @Param("ano") Integer ano);
 
-    // 3. Item mais solicitado fazendo JOIN com a coleção 'itens'
+    // 1. Quantidade de agendamentos e faturamento do período em uma única
+    // consulta (evita duas consultas separadas para o mesmo intervalo).
     @Query("""
-        SELECT i.nome
+        SELECT new com.jbkloh.dvd.dto.response.ResumoAgendamentosResponseDTO(
+            COUNT(a),
+            COALESCE(SUM(a.valorTotal), 0.0)
+        )
         FROM AgendamentoEntity a
-        JOIN a.itens i
-        WHERE MONTH(a.dataAgendamento) = :mes
-          AND YEAR(a.dataAgendamento) = :ano
-          AND i.estaAtivo = true
-          AND i.tipo = :tipo
-        GROUP BY i.nome
-        ORDER BY COUNT(i) DESC
+        WHERE a.dataAgendamento BETWEEN :dataInicio AND :dataFim
     """)
-    List<String> buscarServicoMaisSolicitadoDoMes(
-            @Param("mes") Integer mes, 
-            @Param("ano") Integer ano, 
-            @Param("tipo") TipoItem tipo,
-            Pageable pageable
+    ResumoAgendamentosResponseDTO buscarResumoAgendamentosDoPeriodo(
+            @Param("dataInicio") LocalDate dataInicio,
+            @Param("dataFim") LocalDate dataFim
     );
 
-    // 4. Ranking de itens fazendo JOIN com a coleção 'itens'
+    // 2. Ranking de serviços e produtos do período em uma única consulta
+    // (agrupando por tipo + nome), evitando quatro consultas separadas
+    // (mais solicitado e top N para cada um dos dois tipos de item).
     @Query("""
-        SELECT new com.jbkloh.dvd.dto.response.ItemRankingResponseDTO(
-            i.nome, 
+        SELECT new com.jbkloh.dvd.dto.response.ItemRankingComTipoResponseDTO(
+            i.tipo,
+            i.nome,
             COUNT(i)
         )
         FROM AgendamentoEntity a
         JOIN a.itens i
-        WHERE MONTH(a.dataAgendamento) = :mes
-          AND YEAR(a.dataAgendamento) = :ano
+        WHERE a.dataAgendamento BETWEEN :dataInicio AND :dataFim
           AND i.estaAtivo = true
-          AND i.tipo = :tipo
-        GROUP BY i.nome
-        ORDER BY COUNT(i) DESC
+        GROUP BY i.tipo, i.nome
+        ORDER BY i.tipo ASC, COUNT(i) DESC
     """)
-    List<ItemRankingResponseDTO> buscarRankingItensDoMes(
-            @Param("mes") Integer mes, 
-            @Param("ano") Integer ano, 
-            @Param("tipo") TipoItem tipo,
-            Pageable pageable
+    List<ItemRankingComTipoResponseDTO> buscarRankingItensDoPeriodo(
+            @Param("dataInicio") LocalDate dataInicio,
+            @Param("dataFim") LocalDate dataFim
     );
 
     @Query("""

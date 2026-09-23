@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { Hero } from "@/components/home/hero"
@@ -7,6 +8,10 @@ import { AboutSection } from "@/components/home/about-section"
 import { PortfolioSection, PortfolioSectionSkeleton } from "@/components/home/portfolio-section"
 import { backendFetchJson } from "@/lib/server-fetch"
 import type { PortfolioFotoDTO } from "@/lib/types/portfolio"
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+}
 
 // Cada seção busca seus próprios dados e fica isolada em um Suspense: o
 // shell da home (Hero, header, footer) renderiza de imediato via streaming

@@ -1,5 +1,11 @@
+import type { Metadata } from "next"
 import { backendFetchJson } from "@/lib/server-fetch"
 import { AgendamentosPainel, type AgendamentoDetalhadoResponseDTO } from "./agendamentos-painel"
+
+export const metadata: Metadata = {
+  title: "Agendamentos",
+  robots: { index: false, follow: false },
+}
 
 function getHojeFormatadoLocal(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

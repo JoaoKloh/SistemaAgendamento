@@ -23,27 +23,48 @@ const instrumentSans = Instrument_Sans({
   display: 'swap',
 })
 
+const SITE_URL = 'https://davidrabello.com.br'
+const SITE_NAME = 'David Rabello · Salão Ideal'
+const SITE_DESCRIPTION =
+  'Barbearia e estética masculina em Petrópolis, Rio de Janeiro. Cortes, barboterapia e vibroterapia no tradicional Salão Ideal.'
+
 export const metadata: Metadata = {
-  title: 'David Rabello · Salão Ideal',
-  description:
-    'Barbearia e estética masculina em Petrópolis. Cortes, barboterapia e vibroterapia no tradicional Salão Ideal.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: '%s · Salão Ideal',
+  },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    'barbearia Petrópolis',
+    'corte masculino Petrópolis',
+    'barbeiro',
+    'barbeiro perto de mim',
+    'corte tesoura masculino',
+    'corte de cabelo e barba em Petropólis',
+    'corte na régua Petrópolis',
+    'corte disfarçado Petrópolis',
+    'barboterapia',
+    'vibroterapia',
+    'Salão Ideal',
+  ],
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/apple-icon.png',
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: '/',
+    siteName: SITE_NAME,
+    locale: 'pt_BR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
 }
 

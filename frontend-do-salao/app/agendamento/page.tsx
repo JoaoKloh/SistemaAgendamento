@@ -1,8 +1,16 @@
+import type { Metadata } from "next"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { BookingForm } from "@/components/booking/booking-form"
 import { backendFetchJson } from "@/lib/server-fetch"
 import type { ServicoDTO } from "@/lib/types/booking"
+
+export const metadata: Metadata = {
+  title: "Agendamento",
+  description:
+    "Agende seu horário no Salão Ideal: escolha o serviço, o dia e o horário disponível com David Rabello em Petrópolis.",
+  alternates: { canonical: "/agendamento" },
+}
 
 export default async function AgendamentoPage() {
   // Busca inicial única no servidor: o formulário já hidrata com os

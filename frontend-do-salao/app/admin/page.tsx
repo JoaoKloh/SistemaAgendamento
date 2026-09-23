@@ -1,47 +1,90 @@
 import { Scissors, Package, CalendarCheck, TrendingUp } from "lucide-react"
-import { backendFetchJson, backendFetchText } from "@/lib/server-fetch"
+import type { Metadata } from "next"
+import { backendFetchJson } from "@/lib/server-fetch"
+import { DateRangeFilter } from "./date-range-filter"
+
+export const metadata: Metadata = {
+  title: "Painel administrativo",
+  robots: { index: false, follow: false },
+}
 
 interface ItemRankingDTO {
   nome: string
   quantidadeAgendamentos: number
 }
 
-export default async function DashboardPage() {
-  // Única busca no servidor: todas as métricas chegam prontas no primeiro
-  // HTML enviado ao navegador, sem estados de loading no cliente.
-  const [
+interface DashboardResumoDTO {
+  dataInicio: string
+  dataFim: string
+  agendamentosCount: number
+  faturamento: number
+  servicoMaisSolicitado: string
+  produtoMaisSolicitado: string
+  topServicos: ItemRankingDTO[]
+  topProdutos: ItemRankingDTO[]
+}
+
+const RESUMO_VAZIO: DashboardResumoDTO = {
+  dataInicio: "",
+  dataFim: "",
+  agendamentosCount: 0,
+  faturamento: 0,
+  servicoMaisSolicitado: "",
+  produtoMaisSolicitado: "",
+  topServicos: [],
+  topProdutos: [],
+}
+
+interface DashboardPageProps {
+  searchParams: Promise<{ dataInicio?: string; dataFim?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { dataInicio, dataFim } = await searchParams
+
+  const params = new URLSearchParams()
+  if (dataInicio) params.set("dataInicio", dataInicio)
+  if (dataFim) params.set("dataFim", dataFim)
+  const query = params.toString()
+
+  // Única busca no servidor: todas as métricas do período selecionado
+  // (ou, na ausência de filtro, do mês atual até hoje) chegam prontas no
+  // primeiro HTML enviado ao navegador, sem estados de loading no cliente.
+  const resumo = await backendFetchJson<DashboardResumoDTO>(
+    `/admin/dashboardResumo${query ? `?${query}` : ""}`,
+    RESUMO_VAZIO
+  )
+
+  const {
     agendamentosCount,
-    faturamentoCount,
+    faturamento,
     servicoMaisSolicitado,
     produtoMaisSolicitado,
     topServicos,
     topProdutos,
-  ] = await Promise.all([
-    backendFetchJson<number>("/admin/agendamentosDoMes", 0),
-    backendFetchJson<number>("/admin/faturamentoDoMes", 0),
-    backendFetchText("/admin/servicoMaisSolicitado", ""),
-    backendFetchText("/admin/produtoMaisSolicitado", ""),
-    backendFetchJson<ItemRankingDTO[]>("/admin/topServicos?limite=5", []),
-    backendFetchJson<ItemRankingDTO[]>("/admin/topProdutos?limite=5", []),
-  ])
+  } = resumo
 
   return (
     <div className="w-full space-y-6 sm:space-y-8">
-      <div>
-        <h1 className="font-title text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Visão Geral
-        </h1>
-        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-          Métricas de desempenho e itens mais vendidos do mês atual
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-title text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Visão Geral
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            Métricas de desempenho e itens mais vendidos do período selecionado
+          </p>
+        </div>
+
+        <DateRangeFilter dataInicio={resumo.dataInicio} dataFim={resumo.dataFim} />
       </div>
 
       {/* CARDS DE MÉTRICAS */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-        {/* Card 1: Agendamentos do Mês */}
+        {/* Card 1: Agendamentos do Período */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Agendamentos do Mês</span>
+            <span className="text-xs font-medium text-muted-foreground">Agendamentos do Período</span>
             <CalendarCheck className="h-4 w-4 text-muted-foreground" />
           </div>
           <p className="mt-2 text-xl font-bold text-foreground sm:mt-3 sm:text-2xl">
@@ -81,7 +124,7 @@ export default async function DashboardPage() {
             {new Intl.NumberFormat("pt-BR", {
               style: "currency",
               currency: "BRL",
-            }).format(faturamentoCount)}
+            }).format(faturamento)}
           </p>
         </div>
       </div>
@@ -96,7 +139,7 @@ export default async function DashboardPage() {
           <ul className="mt-3 divide-y divide-border">
             {topServicos.length === 0 && (
               <li className="py-3 text-xs text-muted-foreground sm:text-sm">
-                Nenhum serviço registrado neste mês.
+                Nenhum serviço registrado neste período.
               </li>
             )}
 
@@ -119,7 +162,7 @@ export default async function DashboardPage() {
           <ul className="mt-3 divide-y divide-border">
             {topProdutos.length === 0 && (
               <li className="py-3 text-xs text-muted-foreground sm:text-sm">
-                Nenhum produto registrado neste mês.
+                Nenhum produto registrado neste período.
               </li>
             )}
 

@@ -25,7 +25,7 @@ import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.request.CriarServicoRequestDTO;
 import com.jbkloh.dvd.dto.request.PortfolioRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
-import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
+import com.jbkloh.dvd.dto.response.DashboardResumoResponseDTO;
 import com.jbkloh.dvd.dto.response.PortfolioResponseDTO;
 import com.jbkloh.dvd.service.AgendamentoService;
 import com.jbkloh.dvd.service.PortfolioService;
@@ -127,59 +127,13 @@ public class AdminController {
         return ResponseEntity.ok(agendamentos);
     }
 
-    @GetMapping("/agendamentosDoMes")
-    public ResponseEntity<Integer> quantidadeDeAgendamentosDoMes(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano
-    ) {
-        Integer quantidade = agendamentoService.retornarQuantidadeAgendamentosDoMes(mes, ano);
-        return ResponseEntity.ok(quantidade);
-    }
-
-    @GetMapping("/faturamentoDoMes")
-    public ResponseEntity<Double> getFaturamentoDoMes(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano
-    ) {
-        Double faturamento = agendamentoService.retornarFaturamentoDoMes(mes, ano);
-        return ResponseEntity.ok(faturamento);
-    }
-
-    @GetMapping("/servicoMaisSolicitado")
-    public ResponseEntity<String> getServicoMaisSolicitado(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano
-    ) {
-        String servico = agendamentoService.retornarServicoMaisSolicitadoDoMes(mes, ano);
-        return ResponseEntity.ok(servico);
-    }
-
-    @GetMapping("/produtoMaisSolicitado")
-    public ResponseEntity<String> getProdutoMaisSolicitado(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano
-    ) {
-        String produto = agendamentoService.retornarProdutoMaisSolicitadoDoMes(mes, ano);
-        return ResponseEntity.ok(produto);
-    }
-
-    @GetMapping("/topServicos")
-    public ResponseEntity<List<ItemRankingResponseDTO>> getTopServicos(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano,
+    @GetMapping("/dashboardResumo")
+    public ResponseEntity<DashboardResumoResponseDTO> getDashboardResumo(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
             @RequestParam(required = false, defaultValue = "5") Integer limite
     ) {
-        List<ItemRankingResponseDTO> ranking = agendamentoService.retornarTopServicosDoMes(mes, ano, limite);
-        return ResponseEntity.ok(ranking);
-    }
-
-    @GetMapping("/topProdutos")
-    public ResponseEntity<List<ItemRankingResponseDTO>> getTopProdutos(
-            @RequestParam(required = false) Integer mes,
-            @RequestParam(required = false) Integer ano,
-            @RequestParam(required = false, defaultValue = "5") Integer limite
-    ) {
-        List<ItemRankingResponseDTO> ranking = agendamentoService.retornarTopProdutosDoMes(mes, ano, limite);
-        return ResponseEntity.ok(ranking);
+        DashboardResumoResponseDTO resumo = agendamentoService.retornarDashboardResumo(dataInicio, dataFim, limite);
+        return ResponseEntity.ok(resumo);
     }
 }

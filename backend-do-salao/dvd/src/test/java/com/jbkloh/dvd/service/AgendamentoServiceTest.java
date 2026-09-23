@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -22,6 +22,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
+import com.jbkloh.dvd.dto.response.DashboardResumoResponseDTO;
+import com.jbkloh.dvd.dto.response.ItemRankingComTipoResponseDTO;
+import com.jbkloh.dvd.dto.response.ResumoAgendamentosResponseDTO;
+import com.jbkloh.dvd.enums.TipoItem;
 import com.jbkloh.dvd.exception.AppException;
 import com.jbkloh.dvd.model.AgendamentoEntity;
 import com.jbkloh.dvd.model.ClienteEntity;
@@ -30,8 +34,8 @@ import com.jbkloh.dvd.repository.AgendamentoRepository;
 
 /**
  * Testes de regra de negócio do agendamento: conflito de horário, duplicidade
- * no mesmo dia, resolução do período (mês/ano) e remoção. Usa Mockito puro
- * (sem contexto Spring) para não depender de banco de dados.
+ * no mesmo dia, resolução do período (data início/fim) e remoção. Usa
+ * Mockito puro (sem contexto Spring) para não depender de banco de dados.
  */
 @ExtendWith(MockitoExtension.class)
 class AgendamentoServiceTest {
@@ -152,25 +156,73 @@ class AgendamentoServiceTest {
     }
 
     @Test
-    void retornarQuantidadeAgendamentosDoMes_deveUsarMesAnoAtual_quandoParametrosNulos() {
-        LocalDate hoje = LocalDate.now();
-        when(agendamentoRepository.retornarQuantidadeAgendamentosDoMes(hoje.getMonthValue(), hoje.getYear()))
-            .thenReturn(3);
+    void retornarDashboardResumo_deveUsarPrimeiroDiaDoMesAteHoje_quandoParametrosNulos() {
+        LocalDate hoje = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        LocalDate primeiroDiaDoMes = hoje.withDayOfMonth(1);
 
-        Integer resultado = agendamentoService.retornarQuantidadeAgendamentosDoMes(null, null);
+        when(agendamentoRepository.buscarResumoAgendamentosDoPeriodo(primeiroDiaDoMes, hoje))
+            .thenReturn(new ResumoAgendamentosResponseDTO(3L, 150.0));
+        when(agendamentoRepository.buscarRankingItensDoPeriodo(primeiroDiaDoMes, hoje))
+            .thenReturn(List.of());
 
-        assertThat(resultado).isEqualTo(3);
-        verify(agendamentoRepository).retornarQuantidadeAgendamentosDoMes(hoje.getMonthValue(), hoje.getYear());
+        DashboardResumoResponseDTO resultado = agendamentoService.retornarDashboardResumo(null, null, null);
+
+        assertThat(resultado.dataInicio()).isEqualTo(primeiroDiaDoMes);
+        assertThat(resultado.dataFim()).isEqualTo(hoje);
+        assertThat(resultado.agendamentosCount()).isEqualTo(3L);
+        assertThat(resultado.faturamento()).isEqualTo(150.0);
+        verify(agendamentoRepository).buscarResumoAgendamentosDoPeriodo(primeiroDiaDoMes, hoje);
     }
 
     @Test
-    void retornarQuantidadeAgendamentosDoMes_deveUsarParametrosInformados_quandoFornecidos() {
-        when(agendamentoRepository.retornarQuantidadeAgendamentosDoMes(eq(3), eq(2024)))
-            .thenReturn(7);
+    void retornarDashboardResumo_deveUsarPeriodoInformado_quandoFornecido() {
+        LocalDate inicio = LocalDate.of(2024, 3, 1);
+        LocalDate fim = LocalDate.of(2024, 3, 31);
 
-        Integer resultado = agendamentoService.retornarQuantidadeAgendamentosDoMes(3, 2024);
+        when(agendamentoRepository.buscarResumoAgendamentosDoPeriodo(inicio, fim))
+            .thenReturn(new ResumoAgendamentosResponseDTO(7L, 500.0));
+        when(agendamentoRepository.buscarRankingItensDoPeriodo(inicio, fim))
+            .thenReturn(List.of());
 
-        assertThat(resultado).isEqualTo(7);
-        verify(agendamentoRepository).retornarQuantidadeAgendamentosDoMes(3, 2024);
+        DashboardResumoResponseDTO resultado = agendamentoService.retornarDashboardResumo(inicio, fim, null);
+
+        assertThat(resultado.agendamentosCount()).isEqualTo(7L);
+        assertThat(resultado.faturamento()).isEqualTo(500.0);
+        verify(agendamentoRepository).buscarResumoAgendamentosDoPeriodo(inicio, fim);
+    }
+
+    @Test
+    void retornarDashboardResumo_deveLancarBadRequest_quandoDataInicioAposDataFim() {
+        LocalDate inicio = LocalDate.of(2024, 3, 31);
+        LocalDate fim = LocalDate.of(2024, 3, 1);
+
+        assertThatThrownBy(() -> agendamentoService.retornarDashboardResumo(inicio, fim, null))
+            .isInstanceOf(AppException.class)
+            .extracting(ex -> ((AppException) ex).getHttpStatus())
+            .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void retornarDashboardResumo_deveMontarRankingsSeparadosPorTipoRespeitandoLimite() {
+        LocalDate inicio = LocalDate.of(2024, 3, 1);
+        LocalDate fim = LocalDate.of(2024, 3, 31);
+
+        when(agendamentoRepository.buscarResumoAgendamentosDoPeriodo(inicio, fim))
+            .thenReturn(new ResumoAgendamentosResponseDTO(0L, 0.0));
+        when(agendamentoRepository.buscarRankingItensDoPeriodo(inicio, fim))
+            .thenReturn(List.of(
+                new ItemRankingComTipoResponseDTO(TipoItem.SERVICO, "Corte", 5L),
+                new ItemRankingComTipoResponseDTO(TipoItem.SERVICO, "Barba", 2L),
+                new ItemRankingComTipoResponseDTO(TipoItem.PRODUTO, "Shampoo", 4L)
+            ));
+
+        DashboardResumoResponseDTO resultado = agendamentoService.retornarDashboardResumo(inicio, fim, 1);
+
+        assertThat(resultado.topServicos()).hasSize(1);
+        assertThat(resultado.topServicos().get(0).nome()).isEqualTo("Corte");
+        assertThat(resultado.servicoMaisSolicitado()).isEqualTo("Corte");
+        assertThat(resultado.topProdutos()).hasSize(1);
+        assertThat(resultado.topProdutos().get(0).nome()).isEqualTo("Shampoo");
+        assertThat(resultado.produtoMaisSolicitado()).isEqualTo("Shampoo");
     }
 }

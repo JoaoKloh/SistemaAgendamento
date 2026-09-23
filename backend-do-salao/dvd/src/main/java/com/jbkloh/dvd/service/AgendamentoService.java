@@ -1,11 +1,11 @@
 package com.jbkloh.dvd.service;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +16,10 @@ import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoResponseDTO;
+import com.jbkloh.dvd.dto.response.DashboardResumoResponseDTO;
+import com.jbkloh.dvd.dto.response.ItemRankingComTipoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
+import com.jbkloh.dvd.dto.response.ResumoAgendamentosResponseDTO;
 import com.jbkloh.dvd.enums.TipoItem;
 import com.jbkloh.dvd.exception.AppException;
 import com.jbkloh.dvd.model.AgendamentoEntity;
@@ -38,18 +41,25 @@ public class AgendamentoService {
     private final SseService sseService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
-    /**
-     * Resolve o mês/ano usados nos relatórios: usa os valores informados
-     * quando presentes e cai no mês/ano corrente quando ausentes.
-     */
-    private record Periodo(Integer mes, Integer ano) {}
+    private static final ZoneId ZONA_SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
-    private Periodo resolverPeriodo(Integer mes, Integer ano) {
-        LocalDate hoje = LocalDate.now();
-        return new Periodo(
-            mes != null ? mes : hoje.getMonthValue(),
-            ano != null ? ano : hoje.getYear()
-        );
+    /**
+     * Resolve o período usado nos relatórios do dashboard: usa as datas
+     * informadas quando presentes e cai no padrão (do primeiro dia do mês
+     * atual até hoje) quando ausentes.
+     */
+    private record Periodo(LocalDate dataInicio, LocalDate dataFim) {}
+
+    private Periodo resolverPeriodo(LocalDate dataInicio, LocalDate dataFim) {
+        LocalDate hoje = LocalDate.now(ZONA_SAO_PAULO);
+        LocalDate inicioResolvido = dataInicio != null ? dataInicio : hoje.withDayOfMonth(1);
+        LocalDate fimResolvido = dataFim != null ? dataFim : hoje;
+
+        if (inicioResolvido.isAfter(fimResolvido)) {
+            throw new AppException("A data inicial não pode ser posterior à data final", HttpStatus.BAD_REQUEST);
+        }
+
+        return new Periodo(inicioResolvido, fimResolvido);
     }
 
     @Transactional(readOnly = true)
@@ -167,70 +177,54 @@ public class AgendamentoService {
                 .toList();
     }
 
+    /**
+     * Monta o resumo completo do dashboard administrativo (quantidade de
+     * agendamentos, faturamento e rankings de serviços/produtos) para o
+     * período informado usando apenas DUAS consultas ao banco: uma para o
+     * resumo financeiro e outra, agrupando por tipo, para os rankings de
+     * serviços e produtos — em vez das seis consultas independentes que
+     * seriam necessárias buscando cada métrica separadamente.
+     */
     @Transactional(readOnly = true)
-    public Integer retornarQuantidadeAgendamentosDoMes(Integer mes, Integer ano) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-        return agendamentoRepository.retornarQuantidadeAgendamentosDoMes(periodo.mes(), periodo.ano());
-    }
+    public DashboardResumoResponseDTO retornarDashboardResumo(LocalDate dataInicio, LocalDate dataFim, Integer limite) {
+        Periodo periodo = resolverPeriodo(dataInicio, dataFim);
+        Integer limiteFinal = (limite != null && limite > 0) ? limite : 5;
 
-    @Transactional(readOnly = true)
-    public Double retornarFaturamentoDoMes(Integer mes, Integer ano) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-        return agendamentoRepository.calcularFaturamentoDoMes(periodo.mes(), periodo.ano());
-    }
-
-    @Transactional(readOnly = true)
-    public String retornarServicoMaisSolicitadoDoMes(Integer mes, Integer ano) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-
-        List<String> resultado = agendamentoRepository.buscarServicoMaisSolicitadoDoMes(
-                periodo.mes(),
-                periodo.ano(),
-                TipoItem.SERVICO,
-                PageRequest.of(0, 1)
+        ResumoAgendamentosResponseDTO resumo = agendamentoRepository.buscarResumoAgendamentosDoPeriodo(
+                periodo.dataInicio(),
+                periodo.dataFim()
         );
 
-        return resultado.isEmpty() ? "Nenhum serviço agendado" : resultado.get(0);
-    }
-
-    @Transactional(readOnly = true)
-    public String retornarProdutoMaisSolicitadoDoMes(Integer mes, Integer ano) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-
-        List<String> resultado = agendamentoRepository.buscarServicoMaisSolicitadoDoMes(
-                periodo.mes(),
-                periodo.ano(),
-                TipoItem.PRODUTO,
-                PageRequest.of(0, 1)
+        List<ItemRankingComTipoResponseDTO> rankingCompleto = agendamentoRepository.buscarRankingItensDoPeriodo(
+                periodo.dataInicio(),
+                periodo.dataFim()
         );
 
-        return resultado.isEmpty() ? "Nenhum produto vendido" : resultado.get(0);
-    }
+        List<ItemRankingResponseDTO> rankingServicos = filtrarRankingPorTipo(rankingCompleto, TipoItem.SERVICO, limiteFinal);
+        List<ItemRankingResponseDTO> rankingProdutos = filtrarRankingPorTipo(rankingCompleto, TipoItem.PRODUTO, limiteFinal);
 
-    @Transactional(readOnly = true)
-    public List<ItemRankingResponseDTO> retornarTopProdutosDoMes(Integer mes, Integer ano, Integer limite) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-        Integer limiteFinal = (limite != null) ? limite : 5;
-
-        return agendamentoRepository.buscarRankingItensDoMes(
-                periodo.mes(),
-                periodo.ano(),
-                TipoItem.PRODUTO,
-                PageRequest.of(0, limiteFinal)
+        return new DashboardResumoResponseDTO(
+                periodo.dataInicio(),
+                periodo.dataFim(),
+                resumo.quantidadeAgendamentos(),
+                resumo.faturamentoTotal(),
+                rankingServicos.isEmpty() ? "Nenhum serviço agendado" : rankingServicos.get(0).nome(),
+                rankingProdutos.isEmpty() ? "Nenhum produto vendido" : rankingProdutos.get(0).nome(),
+                rankingServicos,
+                rankingProdutos
         );
     }
 
-    @Transactional(readOnly = true)
-    public List<ItemRankingResponseDTO> retornarTopServicosDoMes(Integer mes, Integer ano, Integer limite) {
-        Periodo periodo = resolverPeriodo(mes, ano);
-        Integer limiteFinal = (limite != null) ? limite : 5; // Padrão Top 5
-
-        return agendamentoRepository.buscarRankingItensDoMes(
-                periodo.mes(),
-                periodo.ano(),
-                TipoItem.SERVICO,
-                PageRequest.of(0, limiteFinal)
-        );
+    private List<ItemRankingResponseDTO> filtrarRankingPorTipo(
+            List<ItemRankingComTipoResponseDTO> rankingCompleto,
+            TipoItem tipo,
+            Integer limite
+    ) {
+        return rankingCompleto.stream()
+                .filter(item -> item.tipo() == tipo)
+                .limit(limite)
+                .map(item -> new ItemRankingResponseDTO(item.nome(), item.quantidadeAgendamentos()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

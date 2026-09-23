@@ -1,7 +1,13 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { ConfirmationCard } from "@/components/booking/confirmation-card"
+
+export const metadata: Metadata = {
+  title: "Agendamento confirmado",
+  robots: { index: false, follow: false },
+}
 
 export default function ConcluidoPage() {
   return (
