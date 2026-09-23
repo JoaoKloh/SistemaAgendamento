@@ -41,9 +41,6 @@ services:
 
       RESEND_API_KEY: ${RESEND_API_KEY}
 
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-
       RSA_PUBLIC_KEY_PATH: /run/secrets/public_key
       RSA_PRIVATE_KEY_PATH: /run/secrets/private_key
 

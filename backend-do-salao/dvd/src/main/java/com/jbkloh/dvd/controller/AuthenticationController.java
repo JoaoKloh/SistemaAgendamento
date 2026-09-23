@@ -1,11 +1,7 @@
 package com.jbkloh.dvd.controller;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -19,12 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
 import com.jbkloh.dvd.dto.request.OptTokenRequestDTO;
 import com.jbkloh.dvd.dto.request.OptVerificacaoRequest;
 import com.jbkloh.dvd.dto.request.TokenRequestDTO;
@@ -53,71 +43,9 @@ public class AuthenticationController {
     private final OptService otpService;
     private final EmailService emailService;
     
-    @Value("${spring.security.oauth2.client.registration.google.client-id}")
-    private String googleClientId;
-    @Value("${spring.security.oauth2.client.registration.google.client-secret}")
-    private String googleClientSecret;
     @Value("${url.frontend}")
     private String urlFront;
 
-    @PostMapping("/oauthGoogle")
-    public ResponseEntity<?> verificarLoginOauth2(@RequestBody Map<String, String> request) throws IOException, GeneralSecurityException {
-        String authorizationCode = request.get("code");
-
-        if (authorizationCode == null || authorizationCode.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Código de autorização ausente.");
-        }
-
-        GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
-                new NetHttpTransport(),
-                new GsonFactory(),
-                "https://oauth2.googleapis.com/token",
-                googleClientId,
-                googleClientSecret, 
-                authorizationCode,
-                urlFront+"/auth/login" 
-        ).execute();
-
-        String token = tokenResponse.getIdToken();
-
-        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
-                .setAudience(Collections.singletonList(googleClientId))
-                .build();
-
-        GoogleIdToken idToken = verifier.verify(token);
-
-        try {
-            if (idToken != null) {
-                GoogleIdToken.Payload payload = idToken.getPayload();
-                String email = payload.getEmail();
-                
-                UsuarioEntity usuario = authenticationService.getUserOrCreate(email);
-                
-                ResponseCookie accessCookie = authenticationService.gerarCookieToken(usuario);
-                ResponseCookie refreshCookie = authenticationService.gerarCookieRefresh(usuario);
-                ResponseCookie isAuthenticated = authenticationService.gerarCookieApoioAutenticacao();
-                
-                List<String> roles = usuario.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .toList();
-
-                String urlDirecionamento =urlFront+ "/";
-                if (roles.contains("ROLE_ADMIN")) {
-                    urlDirecionamento = urlFront+"/admin";
-                }
-
-                return ResponseEntity.ok()
-                        .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
-                        .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-                        .header(HttpHeaders.SET_COOKIE, isAuthenticated.toString())
-                        .body(new LoginResponseDTO(email, roles, urlDirecionamento));
-            } else {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token do Google inválido.");
-            }
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erro ao validar token: " + e.getMessage());
-        }
-    }
     @PostMapping("/gerarcodigo")
     public ResponseEntity<?> gerarCodigoLogin(@RequestBody @Valid OptTokenRequestDTO request) throws MessagingException, Exception {
 
