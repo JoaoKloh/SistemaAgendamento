@@ -9,7 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 	"POSTGRES_PASSWORD=",
 	"APPLICATION_NAME=dvd",
 	"EXPIRATION_TK_DAYS=7",
-	"FRONTEND_URL=http://localhost:3000",
+    "url.frontend=http://localhost:3000",
 	"RESEND_API_KEY=test",
 	"GOOGLE_CLIENT_ID=test",
 	"GOOGLE_CLIENT_SECRET=test",
