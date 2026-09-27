@@ -55,6 +55,10 @@ public class SseEmiterManager {
     }
 
     public void sendToAll(Object data) {
+        sendToAll("agendamento-atualizado", data);
+    }
+
+    public void sendToAll(String nomeEvento, Object data) {
         if (this.emitters.isEmpty()) {
             log.warn("[SSE] Nenhum cliente conectado na lista do SseEmiterManager para receber a notificação.");
             return;
@@ -75,9 +79,9 @@ public class SseEmiterManager {
             for (SseEmitter emitter : this.emitters) {
                 try {
                     emitter.send(SseEmitter.event()
-                            .name("agendamento-atualizado")
+                            .name(nomeEvento)
                             .data(jsonPayload));
-                    log.info("[SSE] Evento agendamento-atualizado enviado com sucesso para o cliente.");
+                    log.info("[SSE] Evento {} enviado com sucesso para o cliente.", nomeEvento);
                 } catch (Exception e) {
                     log.warn("[SSE] Falha na escrita do emitter. Marcando para remoção.");
                     deadEmitters.add(emitter);

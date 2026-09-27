@@ -20,9 +20,9 @@ public class RateLimiterService {
 
     private Bucket novoBucket(String ip) {
         Bandwidth limit = Bandwidth.builder()
-            .capacity(5)
-            .refillIntervally(5, Duration.ofMinutes(1))
-            .initialTokens(5)
+            .capacity(10)
+            .refillIntervally(10, Duration.ofMinutes(1))
+            .initialTokens(10)
             .build();
 
         return Bucket.builder()

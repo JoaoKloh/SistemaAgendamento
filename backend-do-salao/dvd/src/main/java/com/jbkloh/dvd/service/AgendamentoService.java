@@ -3,7 +3,9 @@ package com.jbkloh.dvd.service;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -12,10 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.jbkloh.dvd.dto.request.AgendamentoAdminRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoDetalhadoResponseDTO;
 import com.jbkloh.dvd.dto.response.AgendamentoResponseDTO;
+import com.jbkloh.dvd.dto.response.AgendamentoResponseUsuarioDTO;
 import com.jbkloh.dvd.dto.response.DashboardResumoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingComTipoResponseDTO;
 import com.jbkloh.dvd.dto.response.ItemRankingResponseDTO;
@@ -25,7 +29,9 @@ import com.jbkloh.dvd.exception.AppException;
 import com.jbkloh.dvd.model.AgendamentoEntity;
 import com.jbkloh.dvd.model.ClienteEntity;
 import com.jbkloh.dvd.model.ServicoEntity;
+import com.jbkloh.dvd.model.UsuarioEntity;
 import com.jbkloh.dvd.repository.AgendamentoRepository;
+import com.jbkloh.dvd.repository.UsuarioRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AgendamentoService {
 
     private final AgendamentoRepository agendamentoRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ClienteService clienteService;
     private final ServicoPrestadoService servicoPrestadoService;
     private final SseService sseService;
@@ -77,11 +84,11 @@ public class AgendamentoService {
 
     @Transactional
     public AgendamentoResponseDTO criarAgendamento(AgendamentoRequestDTO req) {
-        if (agendamentoRepository.existsByDataAgendamentoAndHoraAgendamento(req.dataAgendamento(), req.horaAgendamento())) {
+        if (agendamentoRepository.existsByDataAgendamentoAndHoraAgendamentoAndStatusAgendamentoTrue(req.dataAgendamento(), req.horaAgendamento())) {
             throw new AppException("Este agendamento não pode ser feito, pois outra pessoa já reservou o horário selecionado", HttpStatus.CONFLICT);
         }
 
-        if (agendamentoRepository.existsDuplicidadePorEmailEData(req.email(), req.dataAgendamento())) {
+        if (agendamentoRepository.existsDuplicidadePorEmailEDataEStatus(req.email(), req.dataAgendamento(), true)) {
             throw new AppException("Não é possível agendar dois horários no mesmo dia", HttpStatus.BAD_REQUEST);
         }
         
@@ -125,6 +132,54 @@ public class AgendamentoService {
         return new AgendamentoResponseDTO(req.dataAgendamento(), req.horaAgendamento());
     }
 
+    /**
+     * Criação manual pelo painel administrativo: o cliente é localizado pelo
+     * e-mail informado (reutilizado se já existir, criado caso contrário) e os
+     * serviços/produtos escolhidos são validados em lote pelos ids (nunca pelo
+     * nome enviado pelo frontend) antes de qualquer escrita, então um id
+     * inválido rejeita a operação inteira. Mantém a regra de horário único do
+     * fluxo público para não gerar dois agendamentos no mesmo horário.
+     */
+    @Transactional
+    public AgendamentoDetalhadoResponseDTO criarAgendamentoAdmin(AgendamentoAdminRequestDTO req) {
+        if (agendamentoRepository.existsByDataAgendamentoAndHoraAgendamentoAndStatusAgendamentoTrue(req.data(), req.horario())) {
+            throw new AppException("Já existe um agendamento neste horário", HttpStatus.CONFLICT);
+        }
+
+        List<ServicoEntity> itensSelecionados =
+                servicoPrestadoService.validarEObterItensParaAgendamento(req.servicoProdutoIds());
+
+        Double valorTotal = itensSelecionados.stream()
+                .mapToDouble(ServicoEntity::getPreco)
+                .sum();
+
+        ClienteEntity cliente = clienteService.buscarOuCriarClientePorEmail(req.nome(), req.email(), req.telefone());
+
+        AgendamentoEntity agendamento = new AgendamentoEntity();
+        agendamento.setStatusAgendamento(true);
+        agendamento.setCliente(cliente);
+        agendamento.setDataAgendamento(req.data());
+        agendamento.setHoraAgendamento(req.horario());
+        agendamento.setItens(new ArrayList<>(itensSelecionados));
+        agendamento.setValorTotal(valorTotal);
+
+        AgendamentoEntity agendamentoSalvo = agendamentoRepository.save(agendamento);
+        AgendamentoDetalhadoResponseDTO sseDto = new AgendamentoDetalhadoResponseDTO(agendamentoSalvo);
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sseService.notificarNovoAgendamento(sseDto);
+                }
+            });
+        } else {
+            sseService.notificarNovoAgendamento(sseDto);
+        }
+
+        return sseDto;
+    }
+
     @Transactional
     public AgendamentoDetalhadoResponseDTO atualizarAgendamento(AgendamentoUpdateRequestDTO req) {
         AgendamentoEntity agendamento = agendamentoRepository.findById(req.idAgendamento())
@@ -164,6 +219,93 @@ public class AgendamentoService {
 
         return sseDto;
     }
+    /**
+     * Lista os agendamentos ativos do usuário autenticado. O e-mail vem do
+     * contexto do Spring Security (nunca do frontend); os agendamentos são
+     * localizados pelo cliente com esse e-mail, que é único.
+     */
+    @Transactional(readOnly = true)
+    public List<AgendamentoResponseUsuarioDTO> retornarTodosAgendamentosAtivosDoUsuario(String email) {
+        UsuarioEntity usuario = buscarUsuarioPorEmail(email);
+
+        return agendamentoRepository.buscarAgendamentosAtivosPorEmail(usuario.getEmail())
+                .stream()
+                .map(AgendamentoResponseUsuarioDTO::new)
+                .toList();
+    }
+
+    /**
+     * Cancelamento lógico: apenas marca statusAgendamento = false, sem remover
+     * o registro. Um agendamento de outro usuário responde como inexistente
+     * (404), para não revelar quais ids existem.
+     */
+    @Transactional
+    public AgendamentoResponseUsuarioDTO cancelarAgendamento(Long idAgendamento, String email) {
+        UsuarioEntity usuario = buscarUsuarioPorEmail(email);
+
+        AgendamentoEntity agendamento = agendamentoRepository.findById(idAgendamento)
+                .filter(a -> Objects.equals(a.getCliente().getEmail(), usuario.getEmail()))
+                .orElseThrow(() -> new AppException("Agendamento não encontrado.", HttpStatus.NOT_FOUND));
+
+        if (!Boolean.TRUE.equals(agendamento.getStatusAgendamento())) {
+            throw new AppException("Este agendamento já está cancelado.", HttpStatus.CONFLICT);
+        }
+
+        agendamento.setStatusAgendamento(false);
+        AgendamentoEntity agendamentoSalvo = agendamentoRepository.save(agendamento);
+
+        // O DTO do SSE é montado aqui, ainda dentro da transação, porque
+        // cliente e itens são carregados sob demanda (lazy).
+        notificarCancelamentoAposCommit(new AgendamentoDetalhadoResponseDTO(agendamentoSalvo));
+
+        return new AgendamentoResponseUsuarioDTO(agendamentoSalvo);
+    }
+
+    /**
+     * Cancelamento lógico pelo painel administrativo: marca statusAgendamento
+     * = false (o registro nunca é removido) e, após o commit, avisa o painel
+     * pelo evento SSE de cancelamento.
+     */
+    @Transactional
+    public AgendamentoDetalhadoResponseDTO cancelarAgendamentoAdmin(Long idAgendamento) {
+        AgendamentoEntity agendamento = agendamentoRepository.findById(idAgendamento)
+                .orElseThrow(() -> new AppException("Agendamento não encontrado.", HttpStatus.NOT_FOUND));
+
+        if (!Boolean.TRUE.equals(agendamento.getStatusAgendamento())) {
+            throw new AppException("Este agendamento já está cancelado.", HttpStatus.CONFLICT);
+        }
+
+        agendamento.setStatusAgendamento(false);
+        AgendamentoEntity agendamentoSalvo = agendamentoRepository.save(agendamento);
+        AgendamentoDetalhadoResponseDTO sseDto = new AgendamentoDetalhadoResponseDTO(agendamentoSalvo);
+
+        notificarCancelamentoAposCommit(sseDto);
+
+        return sseDto;
+    }
+
+    /**
+     * Envia o evento SSE "agendamento-cancelado" ao painel somente após o
+     * commit, para o painel nunca receber um cancelamento que sofreu rollback.
+     */
+    private void notificarCancelamentoAposCommit(AgendamentoDetalhadoResponseDTO sseDto) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sseService.notificarCancelamentoAgendamento(sseDto);
+                }
+            });
+        } else {
+            sseService.notificarCancelamentoAgendamento(sseDto);
+        }
+    }
+
+    private UsuarioEntity buscarUsuarioPorEmail(String email) {
+        return usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException("Usuário autenticado não encontrado.", HttpStatus.NOT_FOUND));
+    }
+
     @Transactional
     public void deletarAgendamento(Long id) {
         if (!agendamentoRepository.existsById(id)) {

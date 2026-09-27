@@ -31,7 +31,7 @@ public class ClienteEntity {
     @Column(name = "nome", nullable = false)
     private String nome;
 
-    @Column(name = "telefone", nullable = false)
+    @Column(name = "telefone", nullable = true)
     private String telefone;
 
     @Column(name = "email", nullable = false, unique = true)

@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { decodeJwt } from 'jose'
+import { exigeAutenticacao, montarUrlLogin, obterDestinoSeguro, REDIRECT_PARAM } from '@/lib/auth-redirect'
+
+// Retorna true apenas para um JWT decodificável e ainda não expirado.
+function tokenValido(token: string | undefined): boolean {
+  if (!token) return false
+  try {
+    const payload = decodeJwt(token)
+    return !payload.exp || Date.now() < payload.exp * 1000
+  } catch (_) {
+    return false
+  }
+}
 
 export function middleware(request: NextRequest) {
   const tokenCookie = request.cookies.get('accessToken')
   const token = tokenCookie?.value
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
 
   const isAdminRoute = pathname.startsWith('/admin')
   const isAuthRoute = pathname.startsWith('/auth')
@@ -14,9 +26,13 @@ export function middleware(request: NextRequest) {
   if (isAuthRoute && token) {
     try {
       const payload = decodeJwt(token)
-      
+
       // Checa se o token AINDA NÃO expirou
       if (payload.exp && Date.now() < payload.exp * 1000) {
+        const destino = obterDestinoSeguro(request.nextUrl.searchParams.get(REDIRECT_PARAM))
+        if (destino) {
+          return NextResponse.redirect(new URL(destino, request.url))
+        }
         const roles = (payload.roles as string[]) || []
         const isTargetAdmin = roles.includes('ROLE_ADMIN') || roles.includes('ADMIN')
         return NextResponse.redirect(new URL(isTargetAdmin ? '/admin' : '/', request.url))
@@ -24,6 +40,18 @@ export function middleware(request: NextRequest) {
     } catch (_) {
       // Se o token for inválido/corrompido, permite continuar para carregar a página de login
     }
+  }
+
+  // 2. Rotas que exigem login (agendamento): sem token válido, vai para o
+  // login levando o destino original em ?redirect= para voltar após autenticar.
+  if (exigeAutenticacao(pathname) && !tokenValido(token)) {
+    const response = NextResponse.redirect(new URL(montarUrlLogin(pathname + search), request.url))
+    if (token) {
+      response.cookies.delete('accessToken')
+      response.cookies.delete('refreshToken')
+      response.cookies.delete('is-authenticated')
+    }
+    return response
   }
 
   // 3. Tenta acessar rota de Admin sem nenhum token — antes só o passo abaixo
@@ -69,5 +97,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/dashboard/:path*', '/auth/:path*'],
+  matcher: [
+    '/admin/:path*',
+    '/dashboard/:path*',
+    '/auth/:path*',
+    '/agendamento/:path*',
+    '/meus-agendamentos/:path*',
+  ],
 }

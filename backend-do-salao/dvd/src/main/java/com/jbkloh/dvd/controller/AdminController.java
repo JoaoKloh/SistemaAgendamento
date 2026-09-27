@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.jbkloh.dvd.dto.request.AgendamentoAdminRequestDTO;
 import com.jbkloh.dvd.dto.request.AgendamentoUpdateRequestDTO;
 import com.jbkloh.dvd.dto.request.CriarServicoRequestDTO;
 import com.jbkloh.dvd.dto.request.PortfolioRequestDTO;
@@ -109,9 +111,21 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/agendamento/criar")
+    public ResponseEntity<AgendamentoDetalhadoResponseDTO> criarAgendamento(@Valid @RequestBody AgendamentoAdminRequestDTO req) {
+        AgendamentoDetalhadoResponseDTO response = agendamentoService.criarAgendamentoAdmin(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @PutMapping("/atualizar")
     public ResponseEntity<AgendamentoDetalhadoResponseDTO> atualizarAgendamento(@Valid @RequestBody AgendamentoUpdateRequestDTO req) {
         AgendamentoDetalhadoResponseDTO response = agendamentoService.atualizarAgendamento(req);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/agendamento/{idAgendamento}/cancelar")
+    public ResponseEntity<AgendamentoDetalhadoResponseDTO> cancelarAgendamento(@PathVariable Long idAgendamento) {
+        AgendamentoDetalhadoResponseDTO response = agendamentoService.cancelarAgendamentoAdmin(idAgendamento);
         return ResponseEntity.ok(response);
     }
 

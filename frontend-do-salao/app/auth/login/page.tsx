@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowRight, ChevronLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { salon } from "@/lib/data"
+import { obterDestinoSeguro, REDIRECT_PARAM } from "@/lib/auth-redirect"
+
+// Destino de origem (ex.: /agendamento) repassado pelo middleware em ?redirect=.
+// Lido de window.location para não exigir Suspense em volta de useSearchParams.
+function lerDestinoPosLogin(): string | null {
+  return obterDestinoSeguro(new URLSearchParams(window.location.search).get(REDIRECT_PARAM))
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -25,7 +32,7 @@ export default function LoginPage() {
 
     const authCookie = getCookie("is-authenticated")
     if (authCookie) {
-      router.replace("/")
+      router.replace(lerDestinoPosLogin() ?? "/")
       return
     }
 
@@ -140,8 +147,9 @@ export default function LoginPage() {
 
       toast.success("Login realizado com sucesso!")
 
-      // Determina a URL vinda do backend ou força o redirecionamento para o admin
-      const destino = data.urlDirecionamento || "/admin"
+      // Volta para a página que exigiu o login (ex.: /agendamento); sem ela,
+      // usa a URL vinda do backend ou força o redirecionamento para o admin
+      const destino = lerDestinoPosLogin() || data.urlDirecionamento || "/admin"
       window.location.assign(destino)
 
     } catch (error: any) {

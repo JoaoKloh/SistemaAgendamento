@@ -5,14 +5,17 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { CalendarCheck, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { LOGIN_PATH, MEUS_AGENDAMENTOS_PATH } from "@/lib/auth-redirect"
 
 const navLinks = [
   { href: "/#servicos", label: "Serviços" },
   { href: "/#sobre", label: "Sobre" },
   { href: "/#portfolio", label: "Portfólio" },
   { href: "/#contato", label: "Contato" },
-  { href: "/auth/login", label: "Login" },
 ]
+
+const loginLink = { href: LOGIN_PATH, label: "Login" }
+const meusAgendamentosLink = { href: MEUS_AGENDAMENTOS_PATH, label: "Meus agendamentos" }
 
 export function SiteHeader() {
   const pathname = usePathname()
@@ -41,13 +44,9 @@ export function SiteHeader() {
     setIsAuthenticated(checkAuth())
   }, [pathname])
 
-  // Filtra apenas a rota de login se estiver autenticado
-  const visibleNavLinks = navLinks.filter((link) => {
-    if (link.href === "/auth/login" && isAuthenticated) {
-      return false
-    }
-    return true
-  })
+  // Autenticado: o link de Login dá lugar a "Meus agendamentos". Antes de
+  // montar (SSR, sem acesso ao cookie) mantém o Login para não divergir da hidratação.
+  const visibleNavLinks = [...navLinks, isMounted && isAuthenticated ? meusAgendamentosLink : loginLink]
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-md">
@@ -63,7 +62,7 @@ export function SiteHeader() {
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-8 md:flex">
-          {(isMounted ? visibleNavLinks : navLinks).map((link) => (
+          {visibleNavLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -102,7 +101,7 @@ export function SiteHeader() {
       {isOpen && (
         <nav className="border-t border-border/70 bg-background/95 px-4 py-3 backdrop-blur-md md:hidden">
           <div className="flex flex-col gap-1">
-            {(isMounted ? visibleNavLinks : navLinks).map((link) => (
+            {visibleNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

@@ -16,9 +16,12 @@ const inter = Inter({
   display: 'swap',
 })
 
+// Sem `weight` fixo: como fonte variável o Google serve arquivos /s/*.woff2.
+// Pesos estáticos (500/600) vêm como /l/font?kit=...&skey=..., URL com query
+// que o carregador de fontes do Turbopack não resolve ("queries have exactly
+// one entry"). A fonte variável cobre os mesmos pesos.
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
-  weight: ['500', '600'],
   variable: '--font-instrument-sans',
   display: 'swap',
 })

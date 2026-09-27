@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
 import { toast } from "sonner"
 import {
   Bell,
@@ -20,6 +19,8 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useServicos } from "@/lib/hooks/use-servicos"
+import { useProdutos } from "@/lib/hooks/use-produtos"
 
 export interface AgendamentoDetalhadoResponseDTO {
   agendamentoId: number
@@ -50,6 +51,28 @@ interface FormularioEdicao {
   status: boolean
 }
 
+// Payload de POST /admin/agendamento/criar (espelha AgendamentoAdminRequestDTO.java)
+export interface AgendamentoAdminRequestDTO {
+  nome: string
+  email: string
+  telefone: string | null
+  data: string
+  horario: string
+  servicoProdutoIds: number[]
+}
+
+interface FormularioNovoAgendamento {
+  nome: string
+  email: string
+  telefone: string
+  data: string
+  horario: string
+  servicoProdutoIds: number[]
+}
+
+const CLASSE_INPUT_NOVO =
+  "h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:text-sm"
+
 // --- Utilitários de data/hora (apenas apresentação, sem regra de negócio) ---
 
 const DIAS_SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"]
@@ -63,6 +86,12 @@ const PALETA_CORES = [
   { bg: "bg-violet-100 dark:bg-violet-500/15", borda: "border-violet-400 dark:border-violet-400/50", texto: "text-violet-900 dark:text-violet-200" },
   { bg: "bg-sky-100 dark:bg-sky-500/15", borda: "border-sky-400 dark:border-sky-400/50", texto: "text-sky-900 dark:text-sky-200" },
 ]
+
+const COR_CANCELADO = {
+  bg: "bg-red-100 dark:bg-red-500/15",
+  borda: "border-red-500 dark:border-red-400/60",
+  texto: "text-red-900 dark:text-red-200",
+}
 
 function parseDataISO(iso: string): Date {
   const [ano, mes, dia] = iso.split("-").map(Number)
@@ -139,6 +168,25 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
   const [carregandoItens, setCarregandoItens] = useState(false)
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
+  const [cancelando, setCancelando] = useState(false)
+
+  // Ids cancelados recebidos pelo evento SSE "agendamento-cancelado". Só
+  // esses cards ficam vermelhos com "CANCELADO"; nenhum outro evento mexe aqui.
+  const [idsCancelados, setIdsCancelados] = useState<Set<number>>(() => new Set())
+
+  // Criação manual de agendamento pelo administrador
+  const [novoAberto, setNovoAberto] = useState(false)
+  const [formNovo, setFormNovo] = useState<FormularioNovoAgendamento>({
+    nome: "",
+    email: "",
+    telefone: "",
+    data: dataInicial,
+    horario: "",
+    servicoProdutoIds: [],
+  })
+  const [criando, setCriando] = useState(false)
+  const { servicos, isLoadingServicos, errorServicos } = useServicos()
+  const { produtos, isLoadingProdutos, errorProdutos } = useProdutos(novoAberto)
 
   const dataInputRef = useRef<HTMLInputElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -224,6 +272,25 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
       }
     })
 
+    eventSource.addEventListener("agendamento-cancelado", (event) => {
+      try {
+        const cancelado: AgendamentoDetalhadoResponseDTO = JSON.parse(event.data)
+        setIdsCancelados((prev) => new Set(prev).add(cancelado.agendamentoId))
+        // Mantém o status local em sincronia para uma edição posterior não
+        // reenviar statusAgendamento = true e reativar o agendamento.
+        setAgendamentos((prev) =>
+          prev.map((a) => (a.agendamentoId === cancelado.agendamentoId ? { ...a, statusAgendamento: false } : a))
+        )
+
+        const dataFormatada = new Intl.DateTimeFormat("pt-BR").format(parseDataISO(cancelado.dataAgendamento))
+        toast.error("Agendamento cancelado", {
+          description: `${cancelado.clienteNome} — ${dataFormatada} às ${cancelado.horaAgendamento.substring(0, 5)}`,
+        })
+      } catch (err) {
+        console.error("Erro ao processar evento SSE de cancelamento:", err)
+      }
+    })
+
     eventSource.onerror = () => {
       setIsConnected(false)
     }
@@ -273,7 +340,7 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
   }
 
   const fecharDetalhe = () => {
-    if (salvandoEdicao || excluindo) return
+    if (salvandoEdicao || excluindo || cancelando) return
     setAgendamentoSelecionado(null)
     setModoEdicao(false)
   }
@@ -376,6 +443,118 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
       toast.error(err instanceof Error ? err.message : "Erro ao conectar com o servidor.")
     } finally {
       setSalvandoEdicao(false)
+    }
+  }
+
+  // Só solicita o cancelamento: a validação (existência e se já está
+  // cancelado) é do backend, e o card é atualizado pelo evento SSE.
+  const handleCancelarAgendamento = async () => {
+    if (!agendamentoSelecionado) return
+    const confirmado = window.confirm(`Cancelar o agendamento de ${agendamentoSelecionado.clienteNome}?`)
+    if (!confirmado) return
+
+    setCancelando(true)
+    try {
+      const res = await fetch(`/api/admin/agendamento/${agendamentoSelecionado.agendamentoId}/cancelar`, {
+        method: "PATCH",
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        const erro = await res.json().catch(() => ({}))
+        throw new Error(erro.message || "Não foi possível cancelar o agendamento.")
+      }
+
+      toast.success("Agendamento cancelado.")
+      setAgendamentoSelecionado(null)
+      setModoEdicao(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao conectar com o servidor.")
+    } finally {
+      setCancelando(false)
+    }
+  }
+
+  const abrirNovoAgendamento = () => {
+    // Mantém o que já foi digitado (ex.: após um erro); só sugere a data em
+    // exibição quando o formulário ainda está vazio.
+    setFormNovo((f) => (f.nome || f.email || f.horario ? f : { ...f, data: dataSelecionada }))
+    setNovoAberto(true)
+  }
+
+  const alternarItemNovo = (id: number) => {
+    setFormNovo((f) => ({
+      ...f,
+      servicoProdutoIds: f.servicoProdutoIds.includes(id)
+        ? f.servicoProdutoIds.filter((itemId) => itemId !== id)
+        : [...f.servicoProdutoIds, id],
+    }))
+  }
+
+  const fecharNovoAgendamento = () => {
+    if (criando) return
+    setNovoAberto(false)
+  }
+
+  const handleCriarAgendamento = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const nome = formNovo.nome.trim()
+    const email = formNovo.email.trim()
+    const telefone = formNovo.telefone.trim()
+    if (!nome || !email || !formNovo.data || !formNovo.horario) {
+      toast.error("Preencha nome, e-mail, data e horário.")
+      return
+    }
+    if (formNovo.servicoProdutoIds.length === 0) {
+      toast.error("Selecione pelo menos um serviço ou produto.")
+      return
+    }
+
+    const payload: AgendamentoAdminRequestDTO = {
+      nome,
+      email,
+      telefone: telefone || null,
+      data: formNovo.data,
+      horario: formNovo.horario,
+      servicoProdutoIds: formNovo.servicoProdutoIds,
+    }
+
+    setCriando(true)
+    try {
+      const res = await fetch("/api/admin/agendamento/criar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const erro = await res.json().catch(() => ({}))
+        throw new Error(erro.message || "Não foi possível criar o agendamento.")
+      }
+
+      toast.success("Agendamento criado com sucesso!")
+      setNovoAberto(false)
+      setFormNovo({
+        nome: "",
+        email: "",
+        telefone: "",
+        data: formNovo.data,
+        horario: "",
+        servicoProdutoIds: [],
+      })
+
+      // Leva a grade até o dia do novo agendamento; se já está nele, recarrega.
+      if (formNovo.data === dataSelecionada) {
+        await recarregarAgendamentosDoDia()
+      } else {
+        setDataSelecionada(formNovo.data)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao conectar com o servidor.")
+    } finally {
+      setCriando(false)
     }
   }
 
@@ -532,7 +711,8 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
             const duracao = estimarDuracaoMinutos(item.itens)
             const top = (inicioMin - HORA_INICIO_GRADE * 60) * PX_POR_MINUTO
             const altura = Math.max(duracao * PX_POR_MINUTO, 38)
-            const cor = PALETA_CORES[index % PALETA_CORES.length]
+            const cancelado = idsCancelados.has(item.agendamentoId)
+            const cor = cancelado ? COR_CANCELADO : PALETA_CORES[index % PALETA_CORES.length]
             const compacto = altura < 56
 
             if (inicioMin < HORA_INICIO_GRADE * 60 || inicioMin > HORA_FIM_GRADE * 60) return null
@@ -553,7 +733,11 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
                   {formatarHoraCurta(inicioMin)} - {formatarHoraCurta(inicioMin + duracao)}
                 </p>
                 <p className={cn("truncate text-xs font-bold leading-tight", cor.texto)}>{item.clienteNome}</p>
-                {!compacto && (
+                {cancelado ? (
+                  <p className={cn("truncate text-[11px] font-bold uppercase leading-tight tracking-wide", cor.texto)}>
+                    Cancelado
+                  </p>
+                ) : !compacto && (
                   <p className={cn("truncate text-[11px] leading-tight opacity-80", cor.texto)}>
                     {item.itens?.join(" + ") || "Serviço padrão"}
                   </p>
@@ -580,15 +764,178 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
           >
             Hoje
           </button>
-          <Link
-            href="/agendamento"
-            aria-label="Novo agendamento"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90"
+          <button
+            type="button"
+            onClick={abrirNovoAgendamento}
+            aria-label="Adicionar agendamento"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Plus className="h-5 w-5" />
-          </Link>
+            <span className="hidden sm:inline">Adicionar agendamento</span>
+          </button>
         </div>
       </div>
+
+      {/* Criação manual de agendamento */}
+      {novoAberto && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+          onClick={fecharNovoAgendamento}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-novo-agendamento"
+            onSubmit={handleCriarAgendamento}
+            className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-lg sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <h2 id="titulo-novo-agendamento" className="text-lg font-bold text-foreground">
+                Adicionar agendamento
+              </h2>
+              <button
+                type="button"
+                onClick={fecharNovoAgendamento}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-accent"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 border-t border-border/60 pt-4 text-sm">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Nome *</span>
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={formNovo.nome}
+                  onChange={(e) => setFormNovo((f) => ({ ...f, nome: e.target.value }))}
+                  className={CLASSE_INPUT_NOVO}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">E-mail *</span>
+                <input
+                  type="email"
+                  required
+                  inputMode="email"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  value={formNovo.email}
+                  onChange={(e) => setFormNovo((f) => ({ ...f, email: e.target.value }))}
+                  className={CLASSE_INPUT_NOVO}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Telefone (opcional)</span>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
+                  value={formNovo.telefone}
+                  onChange={(e) => setFormNovo((f) => ({ ...f, telefone: e.target.value }))}
+                  className={CLASSE_INPUT_NOVO}
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Data *</span>
+                  <input
+                    type="date"
+                    required
+                    value={formNovo.data}
+                    onChange={(e) => setFormNovo((f) => ({ ...f, data: e.target.value }))}
+                    className={CLASSE_INPUT_NOVO}
+                  />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Horário *</span>
+                  <input
+                    type="time"
+                    required
+                    value={formNovo.horario}
+                    onChange={(e) => setFormNovo((f) => ({ ...f, horario: e.target.value }))}
+                    className={CLASSE_INPUT_NOVO}
+                  />
+                </label>
+              </div>
+
+              {/* Serviços e produtos são a mesma entidade: uma única seleção, agrupada
+                  por tipo só para exibição; o estado guarda apenas os ids. */}
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Serviços e produtos *{" "}
+                  {formNovo.servicoProdutoIds.length > 0 && `(${formNovo.servicoProdutoIds.length} selecionado(s))`}
+                </span>
+                <div className="mt-1 max-h-56 space-y-3 overflow-y-auto rounded-lg border border-border p-2">
+                  {[
+                    { titulo: "Serviços", itens: servicos, carregando: isLoadingServicos, erro: errorServicos },
+                    { titulo: "Produtos", itens: produtos, carregando: isLoadingProdutos, erro: errorProdutos },
+                  ].map((grupo) => (
+                    <div key={grupo.titulo}>
+                      <p className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {grupo.titulo}
+                      </p>
+                      {grupo.carregando ? (
+                        <p className="flex items-center gap-1.5 px-1.5 py-1 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Carregando...
+                        </p>
+                      ) : grupo.erro ? (
+                        <p className="px-1.5 py-1 text-xs text-destructive">Erro ao carregar {grupo.titulo.toLowerCase()}.</p>
+                      ) : grupo.itens.length === 0 ? (
+                        <p className="px-1.5 py-1 text-xs text-muted-foreground">Nenhum item cadastrado.</p>
+                      ) : (
+                        grupo.itens.map((item) => (
+                          <label
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-accent"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formNovo.servicoProdutoIds.includes(item.id)}
+                              onChange={() => alternarItemNovo(item.id)}
+                              className="h-4 w-4 rounded border-border"
+                            />
+                            <span className="flex-1 text-foreground">{item.nome}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.preco)}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={fecharNovoAgendamento}
+                disabled={criando}
+                className="h-11 flex-1 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-accent disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={criando}
+                className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              >
+                {criando && <Loader2 className="h-4 w-4 animate-spin" />}
+                Salvar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Detalhes do agendamento selecionado */}
       {agendamentoSelecionado && (
@@ -710,32 +1057,15 @@ export function AgendamentosPainel({ dataInicial, agendamentosIniciais }: Agenda
 
                 <div>
                   <span className="text-xs font-medium text-muted-foreground">Status</span>
-                  <div className="mt-1 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormEdicao((f) => ({ ...f, status: true }))}
-                      className={cn(
-                        "flex-1 rounded-lg border py-1.5 text-sm font-semibold transition-colors",
-                        formEdicao.status
-                          ? "border-emerald-400 bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200"
-                          : "border-border text-muted-foreground hover:bg-accent"
-                      )}
-                    >
-                      Confirmado
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormEdicao((f) => ({ ...f, status: false }))}
-                      className={cn(
-                        "flex-1 rounded-lg border py-1.5 text-sm font-semibold transition-colors",
-                        !formEdicao.status
-                          ? "border-orange-400 bg-orange-100 text-orange-900 dark:bg-orange-500/15 dark:text-orange-200"
-                          : "border-border text-muted-foreground hover:bg-accent"
-                      )}
-                    >
-                      Pendente
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelarAgendamento}
+                    disabled={cancelando || salvandoEdicao}
+                    className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-destructive/30 py-1.5 text-sm font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                  >
+                    {cancelando && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Cancelar agendamento
+                  </button>
                 </div>
 
                 <div>

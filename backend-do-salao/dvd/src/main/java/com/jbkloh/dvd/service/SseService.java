@@ -38,4 +38,18 @@ public class SseService {
         log.info("[SSE SERVICE] Iniciando transmissão do agendamento ID: {} para o painel.", agendamentoDto.agendamentoId());
         sseEmiterManager.sendToAll(agendamentoDto);
     }
+
+    /**
+     * Transmite o cancelamento de um agendamento em um evento SSE próprio
+     * ("agendamento-cancelado"), para o painel distinguir de criações/edições.
+     */
+    public void notificarCancelamentoAgendamento(AgendamentoDetalhadoResponseDTO agendamentoDto) {
+        if (agendamentoDto == null) {
+            log.warn("[SSE SERVICE] Objeto de agendamento nulo recebido para notificação de cancelamento. Operação abortada.");
+            return;
+        }
+
+        log.info("[SSE SERVICE] Iniciando transmissão do cancelamento do agendamento ID: {} para o painel.", agendamentoDto.agendamentoId());
+        sseEmiterManager.sendToAll("agendamento-cancelado", agendamentoDto);
+    }
 }

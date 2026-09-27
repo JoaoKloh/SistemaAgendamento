@@ -78,4 +78,29 @@ public ClienteEntity buscarOuCriarCliente(String nome, String email, String tele
             return clienteRepository.save(novoCliente);
         });
 }
+
+    /**
+     * Resolve o cliente de um agendamento criado pelo administrador. Diferente
+     * de buscarOuCriarCliente, NÃO usa o usuário autenticado (que aqui é o
+     * próprio admin): o e-mail informado é sempre o identificador do cliente.
+     * O telefone é opcional, então só é gravado/atualizado quando informado —
+     * nunca apaga o telefone já cadastrado.
+     */
+    @Transactional
+    public ClienteEntity buscarOuCriarClientePorEmail(String nome, String email, String telefone) {
+        String nomeUpper = nome.toUpperCase();
+        String telefoneInformado = (telefone == null || telefone.isBlank()) ? null : telefone.trim();
+
+        return clienteRepository.findByEmail(email)
+            .map(clienteExistente -> {
+                if (!Objects.equals(clienteExistente.getNome(), nomeUpper)) {
+                    clienteExistente.setNome(nomeUpper);
+                }
+                if (telefoneInformado != null && !Objects.equals(clienteExistente.getTelefone(), telefoneInformado)) {
+                    clienteExistente.setTelefone(telefoneInformado);
+                }
+                return clienteRepository.save(clienteExistente);
+            })
+            .orElseGet(() -> clienteRepository.save(new ClienteEntity(nomeUpper, email, telefoneInformado)));
+    }
 }

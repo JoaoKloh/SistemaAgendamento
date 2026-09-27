@@ -15,7 +15,8 @@ import com.jbkloh.dvd.model.AgendamentoEntity;
 
 public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, Long> {
 
-    boolean existsByDataAgendamentoAndHoraAgendamento(LocalDate dataAgendamento, LocalTime horaAgendamento);
+    // Só agendamentos ativos ocupam o horário: um cancelado libera a vaga.
+    boolean existsByDataAgendamentoAndHoraAgendamentoAndStatusAgendamentoTrue(LocalDate dataAgendamento, LocalTime horaAgendamento);
     Optional<AgendamentoEntity> findByClienteNome(String nome);
     List<AgendamentoEntity>findByDataAgendamentoOrderByHoraAgendamentoAsc(LocalDate data);
 
@@ -24,10 +25,12 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
         FROM AgendamentoEntity a
         WHERE a.cliente.email = :email
           AND a.dataAgendamento = :dataAgendamento
+          AND a.statusAgendamento = :statusAgendamento
     """)
-    boolean existsDuplicidadePorEmailEData(
+    boolean existsDuplicidadePorEmailEDataEStatus(
         @Param("email") String email,
-        @Param("dataAgendamento") LocalDate dataAgendamento
+        @Param("dataAgendamento") LocalDate dataAgendamento,
+        @Param("statusAgendamento") Boolean statusAgendamento
     );
 
     // 1. Quantidade de agendamentos e faturamento do período em uma única
@@ -39,6 +42,7 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
         )
         FROM AgendamentoEntity a
         WHERE a.dataAgendamento BETWEEN :dataInicio AND :dataFim
+          AND a.statusAgendamento = true
     """)
     ResumoAgendamentosResponseDTO buscarResumoAgendamentosDoPeriodo(
             @Param("dataInicio") LocalDate dataInicio,
@@ -57,6 +61,7 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
         FROM AgendamentoEntity a
         JOIN a.itens i
         WHERE a.dataAgendamento BETWEEN :dataInicio AND :dataFim
+          AND a.statusAgendamento = true
           AND i.estaAtivo = true
         GROUP BY i.tipo, i.nome
         ORDER BY i.tipo ASC, COUNT(i) DESC
@@ -66,10 +71,23 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
             @Param("dataFim") LocalDate dataFim
     );
 
+    // Agendamentos ativos de um cliente (identificado pelo e-mail, que é único
+    // em cliente), já trazendo os itens para evitar N+1 na conversão do DTO.
+    @Query("""
+        SELECT DISTINCT a
+        FROM AgendamentoEntity a
+        LEFT JOIN FETCH a.itens
+        WHERE a.cliente.email = :email
+          AND a.statusAgendamento = true
+        ORDER BY a.dataAgendamento ASC, a.horaAgendamento ASC
+    """)
+    List<AgendamentoEntity> buscarAgendamentosAtivosPorEmail(@Param("email") String email);
+
     @Query("""
         SELECT a.horaAgendamento 
         FROM AgendamentoEntity a 
-        WHERE a.dataAgendamento = :data 
+        WHERE a.dataAgendamento = :data
+          AND a.statusAgendamento = true
     """)
     List<LocalTime> findHorariosOcupadosPorData(@Param("data") LocalDate data);
 }

@@ -2,6 +2,7 @@ package com.jbkloh.dvd.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -94,5 +96,45 @@ private PortfolioService portfolioService;
 
         mockMvc.perform(get("/admin/agendamentos"))
             .andExpect(status().isOk());
+    }
+
+    private static final String AGENDAMENTO_ADMIN = """
+        {"nome":"Cliente","email":"cliente@teste.com","data":"2030-01-10","horario":"10:00","servicoProdutoIds":[1,2]}
+        """;
+
+    @Test
+    void semAutenticacao_naoDeveCriarAgendamentoAdmin() throws Exception {
+        mockMvc.perform(post("/admin/agendamento/criar").contentType(MediaType.APPLICATION_JSON).content(AGENDAMENTO_ADMIN))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void usuarioComum_naoDeveCriarAgendamentoAdmin() throws Exception {
+        mockMvc.perform(post("/admin/agendamento/criar").contentType(MediaType.APPLICATION_JSON).content(AGENDAMENTO_ADMIN))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_deveCriarAgendamento() throws Exception {
+        mockMvc.perform(post("/admin/agendamento/criar").contentType(MediaType.APPLICATION_JSON).content(AGENDAMENTO_ADMIN))
+            .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_semEmail_deveRetornarBadRequest() throws Exception {
+        mockMvc.perform(post("/admin/agendamento/criar").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente\",\"data\":\"2030-01-10\",\"horario\":\"10:00\"}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_semItens_deveRetornarBadRequest() throws Exception {
+        mockMvc.perform(post("/admin/agendamento/criar").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente\",\"email\":\"cliente@teste.com\",\"data\":\"2030-01-10\",\"horario\":\"10:00\",\"servicoProdutoIds\":[]}"))
+            .andExpect(status().isBadRequest());
     }
 }
