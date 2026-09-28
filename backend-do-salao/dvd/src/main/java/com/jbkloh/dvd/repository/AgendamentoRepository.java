@@ -18,7 +18,8 @@ public interface AgendamentoRepository extends JpaRepository<AgendamentoEntity, 
     // Só agendamentos ativos ocupam o horário: um cancelado libera a vaga.
     boolean existsByDataAgendamentoAndHoraAgendamentoAndStatusAgendamentoTrue(LocalDate dataAgendamento, LocalTime horaAgendamento);
     Optional<AgendamentoEntity> findByClienteNome(String nome);
-    List<AgendamentoEntity>findByDataAgendamentoOrderByHoraAgendamentoAsc(LocalDate data);
+    // Somente agendamentos ativos do dia (cancelados não aparecem no painel).
+    List<AgendamentoEntity> findByDataAgendamentoAndStatusAgendamentoTrueOrderByHoraAgendamentoAsc(LocalDate data);
 
     @Query("""
         SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END

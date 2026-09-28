@@ -72,7 +72,7 @@ public class AgendamentoService {
 
     @Transactional(readOnly = true)
     public List<AgendamentoDetalhadoResponseDTO> retornarAgendamentosDoDia(LocalDate data) {
-        return agendamentoRepository.findByDataAgendamentoOrderByHoraAgendamentoAsc(data)
+        return agendamentoRepository.findByDataAgendamentoAndStatusAgendamentoTrueOrderByHoraAgendamentoAsc(data)
                 .stream()
                 .map(this::converterParaDetalhadoDTO)
                 .collect(Collectors.toList());
